@@ -14,7 +14,7 @@
 <link rel="icon" href="food-icon.svg" type="image/svg+xml">
 <link rel="icon" type="image/png" sizes="180x180" href="food-icon-180.png">
 <script src="config.js?v=3"></script>
-<script src="shim.js?v=4"></script>
+<script src="shim.js?v=5"></script>
 <style>
 [hidden]{display:none!important}
 :root{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
@@ -353,6 +353,8 @@ details.ingbox summary{cursor:pointer;font-weight:600}
 .sharepanel{position:fixed;inset:0;z-index:40;background:rgb(0 0 0 / .55);display:grid;place-items:center;padding:16px max(16px,env(safe-area-inset-left,0px))}
 .sharepanel .box{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:18px;max-width:460px;width:100%;display:grid;gap:12px}
 .linkbox{font-family:var(--mono);font-size:.85rem;background:var(--bg);border:1px solid var(--line);border-radius:10px;padding:10px 12px;overflow-wrap:anywhere;user-select:all}
+.notes.sources ul{margin:4px 0 0;padding-left:18px}
+.notes.sources li{margin:2px 0}
 .suggestbar{display:flex;gap:10px;align-items:center;flex-wrap:wrap;background:var(--sunk);border-radius:12px;padding:10px 12px;font-size:.9rem}
 .suggestbar > span:first-child{flex:1 1 240px}
 .inferbar{background:var(--sunk);border-left:4px solid var(--butter);border-radius:10px;padding:10px 14px;margin-bottom:14px;font-size:.92rem}
@@ -436,7 +438,7 @@ const $ = s => document.querySelector(s);
 const view = $('#view');
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const store = { get(k,d){ try{ const v = localStorage.getItem(k); return v==null ? d : JSON.parse(v); }catch{ return d; } }, set(k,v){ try{ localStorage.setItem(k, JSON.stringify(v)); }catch{} } };
-const state = { myEmail: '', myHash: '', inviteCheck: 'idle', bookMeta: {}, invites: [], memberInfo: {}, wasMember: false, books: [], bookId: '', bookName: '', members: [], profileReady: false, recipes: [], plan: [], grocery: [], inbox: [], loaded: false, slow: false, error: '', q: '', tag: '', book: '', mine: false,
+const state = { webResearch: !!window.RecipeBoxWeb, myEmail: '', myHash: '', inviteCheck: 'idle', bookMeta: {}, invites: [], memberInfo: {}, wasMember: false, books: [], bookId: '', bookName: '', members: [], profileReady: false, recipes: [], plan: [], grocery: [], inbox: [], loaded: false, slow: false, error: '', q: '', tag: '', book: '', mine: false,
   db: null, user: null, me: null, canWrite: true, appWrite: true, myRole: 'contributor', assets: null, sample: null, imgOK: false, imgMax: 4, names: {}, units: store.get('units','orig') };
 const newId = p => p + Date.now().toString(36) + Math.random().toString(36).slice(2,8);
 function toast(t){ const el = document.createElement('div'); el.className='toast'; el.textContent=t; el.setAttribute('role','status'); document.body.append(el); setTimeout(()=>el.remove(), 2600); }
@@ -1221,6 +1223,7 @@ function renderDetail(id){
       <div class="panel"><h3>Method</h3>
         ${(r.steps||[]).length ? `<ol class="method">${r.steps.map(s=>`<li><span>${esc(convTemps(s,state.units))}</span></li>`).join('')}</ol>` : '<p class="status">No steps listed.</p>'}
         ${r.notes?`<div class="notes"><b>Notes</b>${esc(r.notes)}</div>`:''}
+        ${(r.basedOn||[]).length ? `<div class="notes sources"><b>Recipe sources Claude used</b><ul>${r.basedOn.map(u => { const su = safeUrl(u); let h = su; try{ h = new URL(su).hostname.replace(/^www\./,''); }catch{} return su ? `<li><a href="${esc(su)}" target="_blank" rel="noopener">${esc(h)}</a></li>` : ''; }).join('')}</ul></div>` : ''}
       </div>
     </section>`;
   const steps = [.25,.5,1,1.5,2,3,4];
@@ -1241,7 +1244,7 @@ function renderDetail(id){
       const out = await completeRecipe(r, pb ? [pb] : []);
       if(!out || out.error){ fm.disabled=false; $('#fillmsg').innerHTML = '<span class="msg err">'+esc(out?.error||'Claude couldn’t tell what dish this is.')+' Edit the name to be more specific and try again.</span>'; return; }
       const d = JSON.parse(JSON.stringify(r)); mergeSuggestion(d, out);
-      await bdoc('recipes/'+id).update({ title:d.title, servings:Number(d.servings)||null, prepMinutes:Number(d.prepMinutes)||null, cookMinutes:Number(d.cookMinutes)||null,
+      await bdoc('recipes/'+id).update({ basedOn: d.basedOn || [], title:d.title, servings:Number(d.servings)||null, prepMinutes:Number(d.prepMinutes)||null, cookMinutes:Number(d.cookMinutes)||null,
         ingredients:d.ingredients, steps:d.steps, tags:d.tags||[], notes:d.notes||'', nutrition:d.nutrition||null, inferred:true, updatedAt:Date.now() });
       toast('Filled in from similar recipes');
     }catch(e){ fm.disabled=false; $('#fillmsg').innerHTML = '<span class="msg err">'+esc(claudeErr(e))+'</span>'; } };
@@ -1541,6 +1544,14 @@ const SCHEMA = `{"title": string, "author": creator handle or name if shown else
  "nutrition": {"calories": number, "protein": grams, "carbs": grams, "fat": grams} estimated PER SERVING, or null if there are no ingredients}`;
 const RULES = `Use what the material says first, word for word where it gives ingredients, amounts and steps. Skip hashtags, promo codes and calls to follow.
 When the material shows or names a dish but leaves out the ingredients, the amounts or the steps, work the recipe out: identify the dish from the title, the photos (what you can see in the pan or on the plate), any ingredients mentioned, and words in the link (recipe-site links usually contain the dish name). Then fill the gaps with how well-known, similar recipes for that dish are made, matching what is visible and anything the creator did say, and give normal home-cook amounts for the servings. Set "inferred" to true and start "notes" with one plain sentence saying which parts came from the post and which you filled in from similar recipes.`;
+/* On the website, Claude can search the web and open pages, so it researches the real recipe */
+const RESEARCH = () => !state.webResearch ? '' : `
+RESEARCH FIRST. You can search the web and open web pages.
+- If the post link is a recipe website or blog, open it and use that recipe.
+- Facebook, Instagram, TikTok and YouTube pages can't be opened. For those, search the web for the dish name (add the creator's name or handle if you know it) to find the creator's own written recipe; if you can't find it, use two or three well-reviewed recipes for the same dish and build the most typical version.
+- Prefer the creator's own recipe over anyone else's. Write the steps clearly in your own words.
+- Add "basedOn": [the URLs of up to 3 pages you actually used], and say in "notes" which recipe you followed.
+- If nothing you find matches the dish, still answer from what you know and set "basedOn": [].`;
 function recipePrompt(url, text, nImg, nVid, dish){
   return `You turn recipes shared on social media, websites, notes or photos into clean, saved recipes.
 Post link: ${url || '(none)'}
@@ -1552,7 +1563,7 @@ ${(text||'').slice(0,20000) || '(none, see the images)'}
 ${nImg ? `Attached: ${nImg} image(s)${nVid ? `, ${nVid} of them stills taken in order from the recipe video (read any on-screen text and what is being added)` : ''}. Images may be screenshots, photos of cookbook pages or handwritten cards.` : ''}
 Return ONLY a JSON object with these keys:
 ${SCHEMA}
-${RULES}
+${RULES}${RESEARCH()}
 Only if nothing in the material identifies a dish at all, return {"error": "short reason"} (for example, a social media link with no caption, photo or dish name).`; }
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 function completeRecipe(r, images){
@@ -1564,7 +1575,7 @@ Ingredients already listed (keep these, add amounts where missing):\n${(r.ingred
 Steps already listed (keep these, add any missing):\n${(r.steps||[]).join('\n') || '(none)'}
 Servings: ${r.servings || 'unknown'}
 ${images && images.length ? 'Attached: a photo of the dish. Match what you can see.' : ''}
-Fill the gaps with how well-known, similar recipes for this dish are made, using normal home-cook amounts.
+Fill the gaps with how well-known, similar recipes for this dish are made, using normal home-cook amounts.${RESEARCH()}
 Return ONLY JSON: {"title": string, "servings": number, "prepMinutes": number, "cookMinutes": number, "ingredients": [all ingredients, amount first], "steps": [all steps, no numbering], ${TAG_RULE}, "notes": "one plain sentence saying what came from the post and what you filled in from similar recipes", "nutrition": {"calories": number, "protein": grams, "carbs": grams, "fat": grams} per serving}
 If you can't tell what dish this is, return {"error": "short reason"}.`, images);
 }
@@ -1577,19 +1588,21 @@ function mergeSuggestion(d, out){
   if(out.nutrition && typeof out.nutrition==='object' && !(d.nutrition && d.nutrition.calories)) d.nutrition = { calories:+out.nutrition.calories||0, protein:+out.nutrition.protein||0, carbs:+out.nutrition.carbs||0, fat:+out.nutrition.fat||0 };
   if(out.notes){ const old = (d.notes||'').trim(); d.notes = (!old || /\b(no|without|not)\b[^.]*\b(ingredient|amount|step)/i.test(old)) ? String(out.notes) : old + '\n\n' + out.notes; }
   d.inferred = true;
+  const bo = basedOnList(out); if(bo.length) d.basedOn = bo;
 }
 async function askClaude(prompt, images){
-  const opts = { modelTier:'default' };
+  const opts = { modelTier:'default', web: !!state.webResearch };
   if(images && images.length && state.imgOK) opts.images = images.slice(0, state.imgMax);
   try{ return await state.sample.json(prompt, opts); }
   catch(e){ if(e && e.code==='rate_limited'){ await sleep(20000); return await state.sample.json(prompt, opts); } throw e; }
 }
+const basedOnList = out => (Array.isArray(out.basedOn) ? out.basedOn : []).map(u => safeUrl(String(u||'').trim())).filter(Boolean).slice(0, 3);
 function toFields(out){
   const num = x => { const v = Number(x); return Number.isFinite(v) && v>0 ? v : null; };
   const nu = out.nutrition && typeof out.nutrition==='object' ? { calories:+out.nutrition.calories||0, protein:+out.nutrition.protein||0, carbs:+out.nutrition.carbs||0, fat:+out.nutrition.fat||0 } : null;
   return { title: String(out.title||'').trim().slice(0,200), author: String(out.author||''), servings: num(out.servings), prepMinutes: num(out.prepMinutes), cookMinutes: num(out.cookMinutes),
     ingredients: Array.isArray(out.ingredients) ? out.ingredients.map(String).filter(Boolean) : [], steps: Array.isArray(out.steps) ? out.steps.map(String).filter(Boolean) : [],
-    tags: facetTags(out), inferred: !!out.inferred, notes: String(out.notes||''), sourceUrl: safeUrl(String(out.sourceUrl||'')), nutrition: nu && (nu.calories||nu.protein) ? nu : null };
+    tags: facetTags(out), inferred: !!out.inferred, notes: String(out.notes||''), sourceUrl: safeUrl(String(out.sourceUrl||'')), basedOn: basedOnList(out), nutrition: nu && (nu.calories||nu.protein) ? nu : null };
 }
 async function saveImported(f, { sourceUrl, photoBlob, photoId } = {}){
   let pid = photoId || '';
@@ -1944,7 +1957,7 @@ function renderEditor(id){
   if(readBtn) readBtn.onclick = async () => {
     sync(); const msg = $('#readmsg');
     if(!d._dish){ msg.innerHTML = '<span class="msg err">Type the dish’s title.</span>'; $('#f-dish').focus(); return; }
-    readBtn.disabled = true; msg.innerHTML = '<span class="msg"><span class="spin"></span> Reading the recipe…</span>';
+    readBtn.disabled = true; msg.innerHTML = '<span class="msg"><span class="spin"></span> '+(state.webResearch ? 'Searching the web and writing the recipe… this can take up to a minute' : 'Reading the recipe…')+'</span>';
     const nVid = shots.filter(s=>s.video).length;
     const prompt = recipePrompt(d.sourceUrl, d._caption, shots.length, nVid, d._dish || (d._filled ? d.title : ''));
     try{
@@ -1963,6 +1976,7 @@ function renderEditor(id){
       d.tags = facetTags(out);
       if(out.nutrition && typeof out.nutrition==='object') d.nutrition = { calories:+out.nutrition.calories||0, protein:+out.nutrition.protein||0, carbs:+out.nutrition.carbs||0, fat:+out.nutrition.fat||0 };
       d.inferred = !!out.inferred;
+      d.basedOn = basedOnList(out);
       if(out.coverImage!=null && shots.length){ const ci = Number(out.coverImage); d._cover = ci>=1 && ci<=shots.length ? ci-1 : -1; }
       d._readMsg = '<span class="msg">'+(d.inferred ? 'The post didn’t list everything, so Claude filled the gaps from similar recipes. See Notes, check it over below, then save.' : 'Got it. Check it over below, then save.')+'</span>';
       renderEditor(id);
@@ -1985,7 +1999,7 @@ function renderEditor(id){
       const srcUrl = normUrl(d.sourceUrl);
       const body = { title:d.title, sourceUrl:srcUrl, platform: platform(srcUrl), author:d.author,
         servings:num(d.servings), prepMinutes:num(d.prepMinutes), cookMinutes:num(d.cookMinutes),
-        ingredients:d.ingredients, steps:d.steps, tags:d.tags, cookbooks:d.cookbooks, notes:d.notes, photoId, photoPos: d.photoPos || null, nutrition: nu, needsReview: false, inferred: !!d.inferred,
+        ingredients:d.ingredients, steps:d.steps, tags:d.tags, cookbooks:d.cookbooks, notes:d.notes, photoId, photoPos: d.photoPos || null, basedOn: d.basedOn || [], nutrition: nu, needsReview: false, inferred: !!d.inferred,
         addedBy: existing ? (existing.addedBy||state.me||'') : (state.me||''), createdAt: existing ? (existing.createdAt||Date.now()) : Date.now(), updatedAt: Date.now() };
       const rid = id || newId('r');
       await bdoc('recipes/'+rid).set(body);

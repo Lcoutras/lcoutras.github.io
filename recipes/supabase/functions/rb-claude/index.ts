@@ -29,7 +29,7 @@ Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: CORS });
   if (req.method !== "POST") return reply(405, { code: "invalid_argument", message: "POST only" });
 
-  let body: { k?: string; prompt?: string; images?: { media_type: string; data: string }[]; ping?: boolean };
+  let body: { k?: string; prompt?: string; images?: { media_type: string; data: string }[]; ping?: boolean; web?: boolean };
   try { body = await req.json(); } catch { return reply(400, { code: "invalid_argument", message: "Bad JSON" }); }
 
   if (!(await keyOk(String(body.k || "")))) return reply(401, { code: "not_granted", message: "Family key not accepted" });
@@ -48,22 +48,41 @@ Deno.serve(async (req: Request) => {
     { type: "text" as const, text: prompt },
   ];
 
+  // Recipe lookups get web search (find real recipes for the dish) and web fetch (read the
+  // linked page or a search result). Facebook, TikTok and Instagram block outside readers.
+  const tools = body.web
+    ? [{ type: "web_search_20260209", name: "web_search", max_uses: 5 }, { type: "web_fetch_20260209", name: "web_fetch", max_uses: 4 }]
+    : undefined;
   const client = new Anthropic({ apiKey });
   try {
-    const response = await client.beta.messages.create({
-      model: MODEL,
-      max_tokens: 16000,
-      output_config: { effort: "medium" },
-      betas: ["server-side-fallback-2026-07-01"],
-      fallbacks: "default",
-      messages: [{ role: "user", content }],
-    } as Anthropic.Beta.MessageCreateParamsNonStreaming);
-
+    const messages: Anthropic.Beta.BetaMessageParam[] = [{ role: "user", content }];
+    let response;
+    // The server-side search loop can pause; resend the turn so it resumes (at most a few times).
+    for (let round = 0; round < 4; round++) {
+      response = await client.beta.messages.create({
+        model: MODEL,
+        max_tokens: 16000,
+        output_config: { effort: "medium" },
+        betas: ["server-side-fallback-2026-07-01"],
+        fallbacks: "default",
+        ...(tools ? { tools } : {}),
+        messages,
+      } as Anthropic.Beta.MessageCreateParamsNonStreaming);
+      if (response.stop_reason !== "pause_turn") break;
+      if (messages.length > 1) messages.pop();
+      messages.push({ role: "assistant", content: response.content as Anthropic.Beta.BetaContentBlockParam[] });
+    }
+    if (!response) return reply(500, { code: "unavailable", message: "No answer" });
     if (response.stop_reason === "refusal") {
       return reply(422, { code: "refused", message: "Claude declined this request." });
     }
-    const text = response.content.filter((b) => b.type === "text").map((b) => (b as { text: string }).text).join("");
-    return reply(200, { text, truncated: response.stop_reason === "max_tokens" });
+    // Keep only the answer written after the last search or fetch, not the commentary in between.
+    const blocks = response.content as { type: string; text?: string }[];
+    let last = -1;
+    blocks.forEach((b, i) => { if (b.type === "server_tool_use" || b.type.endsWith("_tool_result")) last = i; });
+    const text = blocks.slice(last + 1).filter((b) => b.type === "text").map((b) => b.text || "").join("");
+    const searches = (response.usage as { server_tool_use?: { web_search_requests?: number; web_fetch_requests?: number } })?.server_tool_use;
+    return reply(200, { text, truncated: response.stop_reason === "max_tokens", searches: searches?.web_search_requests || 0, fetches: searches?.web_fetch_requests || 0 });
   } catch (err) {
     if (err instanceof Anthropic.RateLimitError) return reply(429, { code: "rate_limited", message: "Claude is busy. Try again in a minute." });
     if (err instanceof Anthropic.AuthenticationError) return reply(503, { code: "not_configured", message: "The Anthropic API key was not accepted." });

@@ -245,7 +245,7 @@
     return out;
   }
   const sample = async (input, opts = {}) => {
-    const r = await callClaude({ prompt: toPrompt(input), images: await toImages(opts.images) });
+    const r = await callClaude({ prompt: toPrompt(input), images: await toImages(opts.images), web: !!opts.web });
     const text = r.text || '';
     if(typeof opts.onText === 'function'){ try{ opts.onText({ text, delta: text }); }catch{} }
     return { text, truncated: !!r.truncated };
