@@ -214,5 +214,5 @@
   /* ---------- the same doorway the app used inside Claude ---------- */
   const caps = { db, user, assets };
   window.claude = Object.freeze({ use: async name => (KEY && CFG.supabaseUrl ? caps[name] || null : null) });
-  window.RecipeBoxWeb = true;
+  window.RecipeBoxWeb = { familyLink: () => location.origin + location.pathname.replace(/index\.html$/, '') + '?k=' + encodeURIComponent(KEY) };
 })();

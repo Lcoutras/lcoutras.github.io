@@ -121,3 +121,9 @@ grant execute on function public.rb_now(text), public.rb_get(text, text), public
   public.rb_set(text, text, jsonb), public.rb_update(text, text, jsonb), public.rb_delete(text, text),
   public.rb_changes(text, timestamptz), public.rb_photo_put(text, text, text), public.rb_photo_get(text, text)
   to anon;
+
+-- A key-free "are you there?" call used by the daily keep-awake job. It reads no data.
+create or replace function public.rb_ping() returns boolean
+language sql stable set search_path = public as $$ select true $$;
+revoke execute on function public.rb_ping() from public, authenticated;
+grant execute on function public.rb_ping() to anon;

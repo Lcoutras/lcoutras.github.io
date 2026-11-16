@@ -24,6 +24,13 @@ publishable key in `config.js` cannot read them. The site only calls the `rb_*` 
 To change the family key (if the link gets passed around), run
 `update rb_access set key_hash = encode(sha256(convert_to('NEW-KEY','UTF8')),'hex');` and send everyone the new link.
 
+## Keeping the database awake
+
+Supabase pauses free projects after 7 days without activity. `.github/workflows/keep-recipe-box-awake.yml`
+calls `rb_ping()` once a day (it reads no data). If the database doesn't answer, the run fails and GitHub
+emails the repository owner with a link to unpause it. It can also be run by hand from the **Actions** tab.
+GitHub stops scheduled jobs in repositories with no changes for 60 days; re-enabling it is one tap in **Actions**.
+
 ## Files
 
 | File | Purpose |

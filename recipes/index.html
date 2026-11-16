@@ -399,6 +399,7 @@ details.ingbox summary{cursor:pointer;font-weight:600}
   <header class="top">
     <div class="toprow">
       <button class="btn small homebtn" id="refreshBtn" type="button" aria-label="Refresh"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 12a8 8 0 1 1-2.34-5.66"/><path d="M20 4v5h-5"/></svg>Refresh</button>
+      <button class="btn small homebtn" id="shareBtn" type="button" hidden><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 15V3"/><path d="m7 8 5-5 5 5"/><path d="M5 12v7a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-7"/></svg>Share</button>
       <div class="brand"><h1><a href="#" class="homelink">Family Recipe Box</a></h1><div class="bookmenu" id="bookWrap" hidden><button class="bookbtn" id="bookBtn" type="button" aria-haspopup="menu" aria-expanded="false" aria-controls="bookMenu"></button><div class="bm" id="bookMenu" role="menu" hidden></div></div><span class="count" id="count"></span></div>
       <div class="search" id="searchWrap">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
@@ -461,7 +462,8 @@ function bindPasteBox(el, onFile){
 /* A designed cover for recipes with no photo: colour from the dish name, a plate, the name. */
 function coverHTML(r, big){
   const t = (r && r.title) || 'Untitled recipe'; let h = 0; for(const c of t) h = (h*31 + c.charCodeAt(0)) % 360;
-  return `<div class="cover${big?' big':''}" style="--h:${h}" role="img" aria-label="${esc(t)}"><svg viewBox="0 0 120 120" aria-hidden="true"><circle cx="60" cy="60" r="52" fill="none" stroke="currentColor" stroke-width="3" opacity=".55"/><circle cx="60" cy="60" r="36" fill="none" stroke="currentColor" stroke-width="2" opacity=".35"/><path d="M14 22v22M8 22v14a6 6 0 0 0 12 0V22M106 22c-6 4-8 12-8 20h8v38" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" opacity=".55"/></svg><span>${esc(t)}</span></div>`; }
+  const h2 = (h + 25) % 360;
+  return `<div class="cover${big?' big':''}" style="background-color:hsl(${h},50%,30%);background-image:radial-gradient(circle at 30% 25%,hsl(${h2},55%,48%),hsl(${h},50%,30%) 70%);color:hsl(${h},45%,96%)" role="img" aria-label="${esc(t)}"><svg viewBox="0 0 120 120" aria-hidden="true"><circle cx="60" cy="60" r="52" fill="none" stroke="currentColor" stroke-width="3" opacity=".55"/><circle cx="60" cy="60" r="36" fill="none" stroke="currentColor" stroke-width="2" opacity=".35"/><path d="M14 22v22M8 22v14a6 6 0 0 0 12 0V22M106 22c-6 4-8 12-8 20h8v38" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" opacity=".55"/></svg><span>${esc(t)}</span></div>`; }
 
 /* dates (local) */
 const iso = d => d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
@@ -1018,6 +1020,17 @@ function route(){ const h = location.hash.slice(1);
   return {name:'list'}; }
 window.addEventListener('hashchange', () => { window.scrollTo(0,0); render(); });
 $('#addBtn').onclick = () => { location.hash = 'new'; };
+/* Share the family link (website edition) */
+if(window.RecipeBoxWeb && window.RecipeBoxWeb.familyLink){
+  const sb = $('#shareBtn'); sb.hidden = false;
+  sb.onclick = async () => {
+    const link = window.RecipeBoxWeb.familyLink();
+    const text = 'Here’s our Family Recipe Box. Open this link to see and add recipes (no account needed):';
+    if(navigator.share){ try{ await navigator.share({ title: 'Family Recipe Box', text, url: link }); return; }catch(e){ if(e && e.name==='AbortError') return; } }
+    try{ await navigator.clipboard.writeText(text + '\n' + link); toast('Family link copied. Paste it into a text or email.'); }
+    catch{ toast('Copy this link: ' + link); }
+  };
+}
 /* Book switcher dropdown */
 function closeBookMenu(){ $('#bookMenu').hidden = true; $('#bookBtn').setAttribute('aria-expanded','false'); }
 function openBookMenu(){
