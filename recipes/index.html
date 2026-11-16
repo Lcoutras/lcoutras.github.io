@@ -1,0 +1,1944 @@
+<!doctype html>
+<html lang="en"><head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Family Recipe Box</title>
+<meta name="robots" content="noindex,nofollow">
+<meta name="theme-color" content="#121612">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Recipes">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="icon-180.png">
+<link rel="icon" href="icon.svg" type="image/svg+xml">
+<script src="config.js"></script>
+<script src="shim.js"></script>
+<style>
+[hidden]{display:none!important}
+:root{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+html,body{margin:0}
+body{font-size:16px}
+img{max-width:100%}
+.keyscreen{position:fixed;inset:0;z-index:50;background:var(--bg);display:grid;place-items:center;padding:24px max(16px,env(safe-area-inset-left,0px))}
+.keyscreen .box{max-width:440px;width:100%;display:grid;gap:12px}
+.keyscreen h2{font-size:1.6rem}
+.keyscreen p{margin:0;color:var(--muted)}
+.keyscreen form{display:flex;gap:8px;flex-wrap:wrap}
+.keyscreen .inp,.keyscreen input{flex:1 1 200px;min-width:0;border:1px solid var(--line);background:var(--surface);color:var(--ink);border-radius:999px;padding:10px 16px}
+</style>
+</head><body>
+
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700;12..96,800&family=Figtree:wght@400;500;600;700&family=JetBrains+Mono:wght@500&display=swap">
+<style>
+/* Layout: a pantry shelf. Sticky header with tabs (Recipes / Meal plan / Grocery list); recipes as a card grid; a recipe opens as a full page; cooking opens a one-step-at-a-time screen. */
+:root{
+  --bg:#f6f8f3; --surface:#ffffff; --sunk:#eaefe4; --line:#d6ded0;
+  --ink:#1c2619; --muted:#5d6b57; --accent:#2f6b3a; --accent-ink:#ffffff;
+  --butter:#f3d36b; --butter-ink:#3a2f05; --danger:#b3261e;
+  --display:"Bricolage Grotesque",ui-sans-serif,system-ui,sans-serif;
+  --body:"Figtree",ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif;
+  --mono:"JetBrains Mono",ui-monospace,SFMono-Regular,Menlo,monospace;
+  --r:14px;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#121612; --surface:#1C221C; --sunk:#171C17; --line:#2E362E;
+  --ink:#F3F5F3; --muted:#9AA59A; --accent:#98D89E; --accent-ink:#0F1A10;
+  --butter:#e2c35c; --butter-ink:#2a2204; --danger:#ff8a80; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#121612; --surface:#1C221C; --sunk:#171C17; --line:#2E362E;
+  --ink:#F3F5F3; --muted:#9AA59A; --accent:#98D89E; --accent-ink:#0F1A10;
+  --butter:#e2c35c; --butter-ink:#2a2204; --danger:#ff8a80; color-scheme:dark}
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+.homelink{color:inherit;text-decoration:none}
+.homelink:hover{color:var(--accent)}
+.homebtn{order:-1}
+.spinning svg{animation:sp .8s linear infinite}
+body{background:var(--bg);color:var(--ink);font:16px/1.5 var(--body);
+  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:0 48px}
+body::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-area-inset-top,0px);z-index:10;background:var(--bg)}
+.wrap{max-width:1120px;margin:0 auto}
+h1,h2,h3{font-family:var(--display);text-wrap:balance;margin:0;line-height:1.1}
+button,input,textarea,select{font:inherit;color:inherit}
+a{color:var(--accent)}
+:focus-visible{outline:3px solid var(--butter);outline-offset:2px}
+.btn{border:1px solid var(--line);background:var(--surface);border-radius:999px;padding:9px 16px;font-weight:600;cursor:pointer;display:inline-flex;align-items:center;gap:6px;white-space:nowrap;text-decoration:none;color:var(--ink)}
+.btn:hover{border-color:var(--accent)}
+.btn.primary{background:var(--accent);color:var(--accent-ink);border-color:var(--accent)}
+.btn.primary:hover{filter:brightness(1.08)}
+.btn.ghost{background:transparent;border-color:transparent}
+.btn.small{padding:5px 12px;font-size:.88rem}
+.btn.danger{color:var(--danger)}
+.btn.danger.solid{background:var(--danger);color:var(--surface);border-color:var(--danger)}
+.btn[disabled]{opacity:.55;cursor:default}
+.x{border:0;background:transparent;color:var(--muted);cursor:pointer;font-size:1.1rem;line-height:1;padding:4px 8px;border-radius:8px}
+.x:hover{background:var(--sunk);color:var(--danger)}
+select,.inp{border:1px solid var(--line);background:var(--bg);border-radius:10px;padding:8px 10px;min-width:0}
+
+/* header */
+header.top{position:sticky;top:env(safe-area-inset-top,0px);z-index:5;background:var(--bg);padding-block:14px 0;border-bottom:1px solid var(--line);margin-bottom:20px}
+.toprow{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+.brand{display:flex;align-items:baseline;gap:10px;margin-right:auto}
+.brand h1{font-size:1.6rem;font-weight:800;letter-spacing:-.02em}
+.brand .count{font-family:var(--mono);font-size:.8rem;color:var(--muted)}
+.tabs{display:flex;gap:4px;margin-top:10px;overflow-x:auto}
+.tab{padding:9px 14px;border:0;background:transparent;border-bottom:3px solid transparent;font-weight:600;color:var(--muted);text-decoration:none;white-space:nowrap;display:inline-flex;gap:6px;align-items:center}
+.tab[aria-current="page"]{color:var(--ink);border-bottom-color:var(--accent)}
+.badge{font-family:var(--mono);font-size:.72rem;background:var(--butter);color:var(--butter-ink);border-radius:999px;padding:0 7px}
+.search{flex:1 1 260px;min-width:0;position:relative}
+.search input{width:100%;border:1px solid var(--line);background:var(--surface);border-radius:999px;padding:10px 16px 10px 40px}
+.search svg{position:absolute;left:14px;top:50%;transform:translateY(-50%);color:var(--muted)}
+.chips{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:16px}
+.chip{border:1px solid var(--line);background:transparent;border-radius:999px;padding:4px 12px;font-size:.88rem;cursor:pointer;color:var(--muted)}
+.chip.book{border-style:solid;border-color:var(--accent);color:var(--accent)}
+.chip[aria-pressed="true"]{background:var(--ink);color:var(--bg);border-color:var(--ink)}
+.status{font-size:.9rem;color:var(--muted);margin:0 0 12px}
+.toast{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(20px + env(safe-area-inset-bottom,0px));background:var(--ink);color:var(--bg);padding:10px 18px;border-radius:999px;z-index:20;font-weight:600;max-width:calc(100% - 32px)}
+
+/* grid */
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:16px}
+.card{position:relative}
+.card .cbody{gap:5px}
+.card .kicker{color:var(--muted)}
+.card.featured{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
+.card.featured .kicker,.card.featured .by,.card.featured .meta{color:color-mix(in srgb,var(--accent-ink) 75%,transparent)}
+.card.featured .src{background:color-mix(in srgb,var(--accent-ink) 12%,transparent);color:var(--accent-ink)}
+.card.featured .thumb{background:transparent}
+.cover.feat{background:var(--accent);color:var(--accent-ink)}
+.cover.feat svg{width:40%;max-width:96px}
+.ctags{display:flex;gap:5px;flex-wrap:wrap}
+.ctags span{font-size:.75rem;font-weight:600;border-radius:6px;padding:1px 8px;background:color-mix(in srgb,var(--accent-ink) 12%,transparent)}
+.src.strong{font-weight:700;color:var(--ink)}
+.card .by b{font-weight:800}
+.card.dragging{opacity:.5}
+.planit{align-self:flex-start;margin-top:4px}
+@media (hover:hover) and (pointer:fine){.planit{display:none}}
+.planlayout{display:grid;grid-template-columns:minmax(0,1fr) 280px;gap:20px;align-items:start}
+.planmain{min-width:0}
+.planner{position:sticky;top:calc(env(safe-area-inset-top,0px) + 132px);max-height:calc(100vh - 150px);overflow:auto;background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:14px;display:grid;gap:10px}
+.planner.dropping .pl-drop{border-color:var(--accent)}
+.pl-head{display:flex;align-items:center;justify-content:space-between}
+.pl-head h3{font-size:1.05rem}
+.pl-nav .x{font-size:1.2rem;padding:2px 8px}
+.pl-search{position:relative}
+.pl-search input{width:100%;border:1px solid var(--line);background:var(--bg);border-radius:999px;padding:8px 12px 8px 32px;font-size:.9rem}
+.pl-search svg{position:absolute;left:12px;top:50%;transform:translateY(-50%);color:var(--muted)}
+.pl-results{list-style:none;margin:-4px 0 0;padding:4px;border:1px solid var(--line);border-radius:10px;background:var(--bg);display:grid;gap:2px}
+.pl-results button{display:flex;gap:8px;align-items:center;width:100%;border:0;background:transparent;padding:5px 6px;border-radius:7px;cursor:pointer;text-align:left;font-weight:600;font-size:.88rem}
+.pl-results button:hover{background:var(--sunk)}
+.pl-mini{width:34px;height:28px;border-radius:5px;overflow:hidden;flex:none;display:block}
+.pl-mini img,.pl-mini .cover{width:100%;height:100%;object-fit:cover}
+.pl-mini .cover svg,.pl-mini .cover span,.pl-thumb .cover span{display:none}
+.pl-pick{background:var(--sunk);border:1px solid var(--accent);border-radius:10px;padding:8px 10px;font-size:.85rem;display:flex;gap:6px;align-items:center}
+.pl-pick b{flex:1;min-width:0}
+.pl-week{font-weight:700;font-size:.95rem;display:flex;gap:8px;align-items:baseline;flex-wrap:wrap}
+.linkbtn{border:0;background:transparent;color:var(--accent);cursor:pointer;font-size:.8rem;padding:0}
+.pl-day{display:grid;gap:4px;border-radius:10px;padding:2px}
+.pl-day.over{background:color-mix(in srgb,var(--accent) 12%,transparent)}
+.pl-day.target{outline:1px dashed var(--accent);outline-offset:2px}
+.pl-dname{font-weight:600;font-size:.9rem}
+.pl-dname small{color:var(--accent);font-weight:600;margin-left:4px}
+.pl-day.today .pl-dname{color:var(--accent)}
+.pl-slots{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.pl-thumb{position:relative;width:58px;height:48px;border-radius:8px;overflow:hidden;border:1px solid var(--line);cursor:grab}
+.pl-thumb a{display:block;width:100%;height:100%}
+.pl-thumb img,.pl-thumb .cover{width:100%;height:100%;object-fit:cover}
+.pl-thumb .cover svg{width:60%}
+.pl-rm{position:absolute;top:2px;right:2px;width:18px;height:18px;border:0;border-radius:50%;background:var(--ink);color:var(--bg);font-size:.75rem;line-height:1;cursor:pointer;opacity:0}
+.pl-thumb:hover .pl-rm,.pl-thumb:focus-within .pl-rm{opacity:1}
+@media (hover:none){.pl-rm{opacity:1}}
+.pl-drop{width:58px;height:48px;border:1.5px dashed var(--line);border-radius:8px;background:transparent;color:var(--muted);font-size:1.4rem;cursor:pointer;display:grid;place-items:center;flex:none}
+.pl-drop:hover{border-color:var(--accent);color:var(--accent)}
+.pl-drop.compact{width:36px}
+.pl-hint{font-size:.82rem;color:var(--muted)}
+.pl-caption{font-size:.8rem;color:var(--ink)}
+.pl-shop{justify-content:center;margin-top:4px}
+@media (max-width:900px){.planlayout{grid-template-columns:minmax(0,1fr)}.planner{position:static;max-height:none;order:-1}}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);overflow:hidden;cursor:pointer;text-align:left;padding:0;display:flex;flex-direction:column;transition:transform .15s ease,border-color .15s ease}
+.card:hover{transform:translateY(-2px);border-color:var(--accent)}
+.thumb{aspect-ratio:4/3;width:100%;max-width:100%;background:var(--sunk);display:grid;place-items:center;overflow:hidden}
+.thumb img{width:100%;height:100%;object-fit:cover;display:block}
+.cover{--h:140;width:100%;height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;padding:14px;text-align:center;color:hsl(var(--h) 45% 96%);background:radial-gradient(circle at 30% 25%,hsl(calc(var(--h) + 25) 55% 48%),hsl(var(--h) 50% 30%) 70%)}
+.cover svg{width:44%;max-width:110px;height:auto}
+.cover span{font-family:var(--display);font-weight:700;font-size:1rem;line-height:1.15;text-wrap:balance;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}
+.cover.big span{font-size:1.5rem}
+.photo-prev .cover span{font-size:.7rem}
+.hero .thumb{position:relative}
+.herophoto{display:grid;gap:10px;min-width:0}
+.phototools{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.pastebox{flex:1 1 200px;min-width:0;min-height:38px;border:2px dashed var(--line);border-radius:10px;padding:8px 12px;font-size:.88rem;background:var(--bg);color:var(--ink);cursor:text;outline:none}
+.pastebox:empty::before{content:attr(data-ph);color:var(--muted)}
+.pastebox:focus{border-color:var(--accent)}
+.thumb .ph{font-family:var(--display);font-weight:800;font-size:2.6rem;color:var(--line)}
+.cbody{padding:12px 14px 14px;display:flex;flex-direction:column;gap:6px;flex:1}
+.cbody h3{font-size:1.08rem;font-weight:700}
+.meta{display:flex;gap:8px;flex-wrap:wrap;align-items:center;font-size:.82rem;color:var(--muted)}
+.src{font-family:var(--mono);font-size:.72rem;text-transform:uppercase;letter-spacing:.06em;background:var(--sunk);padding:2px 7px;border-radius:6px;color:var(--ink)}
+.by{margin-top:auto;font-size:.8rem;color:var(--muted)}
+.empty{border:2px dashed var(--line);border-radius:var(--r);padding:40px 24px;text-align:center;display:grid;gap:12px;justify-items:center}
+.empty h2{font-size:1.4rem}
+.empty p{margin:0;color:var(--muted);max-width:52ch}
+.steps3{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px;width:100%;max-width:720px;margin-top:8px;text-align:left}
+.steps3 div{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:12px 14px;font-size:.92rem}
+.steps3 b{display:block;font-family:var(--display)}
+
+/* detail */
+.back{margin-bottom:14px}
+.hero{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.2fr);gap:24px;align-items:start;margin-bottom:28px}
+.hero .thumb{border-radius:var(--r)}
+.hero h2{font-size:clamp(1.8rem,4vw,2.6rem);font-weight:800;letter-spacing:-.02em;margin-bottom:10px}
+.facts{display:flex;gap:10px;flex-wrap:wrap;margin:14px 0}
+.fact{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:8px 12px;min-width:84px}
+.fact small{display:block;font-size:.72rem;text-transform:uppercase;letter-spacing:.07em;color:var(--muted)}
+.fact b{font-family:var(--mono);font-weight:500;font-variant-numeric:tabular-nums}
+.nutri{display:flex;gap:6px;flex-wrap:wrap;align-items:center;font-size:.88rem;margin-top:8px}
+.nutri .fact{min-width:70px;padding:6px 10px}
+.nutri .est{color:var(--muted);font-size:.8rem}
+.actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:16px}
+.inline-panel{margin-top:12px;background:var(--surface);border:1px solid var(--accent);border-radius:12px;padding:12px;display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.cols{display:grid;grid-template-columns:minmax(0,.9fr) minmax(0,1.3fr);gap:28px}
+.panel h3{font-size:1.2rem;margin-bottom:12px;display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.tools{margin-left:auto;display:flex;gap:6px;flex-wrap:wrap;align-items:center}
+.scaler{display:inline-flex;align-items:center;gap:4px;font-family:var(--body);font-size:.85rem;font-weight:500;background:var(--sunk);border-radius:999px;padding:3px}
+.scaler button{border:0;background:var(--surface);width:28px;height:28px;border-radius:50%;cursor:pointer;font-weight:700}
+.scaler span{min-width:74px;text-align:center;font-family:var(--mono)}
+.seg{display:inline-flex;background:var(--sunk);border-radius:999px;padding:3px;font-family:var(--body);font-size:.8rem;font-weight:600}
+.seg button{border:0;background:transparent;border-radius:999px;padding:4px 10px;cursor:pointer;color:var(--muted)}
+.seg button[aria-pressed="true"]{background:var(--surface);color:var(--ink)}
+ul.ing{list-style:none;margin:0;padding:0;display:grid;gap:2px}
+ul.ing label{display:flex;gap:10px;padding:8px 10px;border-radius:10px;cursor:pointer;align-items:flex-start}
+ul.ing label:hover{background:var(--sunk)}
+ul.ing input{margin-top:5px;accent-color:var(--accent);width:17px;height:17px;flex:none}
+ul.ing input:checked + span{text-decoration:line-through;color:var(--muted)}
+.qty{font-family:var(--mono);font-size:.92em;background:var(--butter);color:var(--butter-ink);padding:0 5px;border-radius:5px}
+ol.method{margin:0;padding:0;list-style:none;counter-reset:s;display:grid;gap:14px}
+ol.method li{counter-increment:s;display:grid;grid-template-columns:34px 1fr;gap:12px;align-items:start}
+ol.method li::before{content:counter(s);font-family:var(--display);font-weight:800;font-size:1.1rem;width:34px;height:34px;border-radius:50%;background:var(--accent);color:var(--accent-ink);display:grid;place-items:center}
+.notes{margin-top:24px;background:var(--sunk);border-radius:12px;padding:14px 16px;white-space:pre-wrap}
+.notes b{display:block;font-family:var(--display);margin-bottom:4px}
+.tags{display:flex;gap:6px;flex-wrap:wrap}
+.tag{font-size:.8rem;border:1px solid var(--line);border-radius:999px;padding:1px 9px;color:var(--muted)}
+.tag.book{border-color:var(--accent);color:var(--accent)}
+.confirm{display:inline-flex;gap:8px;align-items:center;flex-wrap:wrap;font-size:.9rem}
+
+/* cook mode */
+.cook{max-width:760px;margin:0 auto;display:grid;gap:18px}
+.cook-top{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.cook-top h2{font-size:1.2rem;margin-right:auto}
+.progress{height:6px;background:var(--sunk);border-radius:999px;overflow:hidden}
+.progress i{display:block;height:100%;background:var(--accent);border-radius:999px;transition:width .25s ease}
+.stepno{font-family:var(--mono);color:var(--muted);font-size:.9rem}
+.steptext{font-size:clamp(1.35rem,3.6vw,2rem);line-height:1.35;font-weight:500;min-height:6em}
+.timers{display:flex;gap:8px;flex-wrap:wrap}
+.timer{font-family:var(--mono);font-variant-numeric:tabular-nums}
+.timer.ring{background:var(--butter);color:var(--butter-ink);border-color:var(--butter)}
+.cook-nav{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.cook-nav .btn{justify-content:center;padding:16px;font-size:1.1rem}
+details.ingbox{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:10px 14px}
+details.ingbox summary{cursor:pointer;font-weight:600}
+
+/* plan */
+.weekbar{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:16px}
+.weekbar h2{font-size:1.5rem;margin-right:auto}
+.days{display:grid;gap:10px}
+.day{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:12px 14px;display:grid;grid-template-columns:110px minmax(0,1fr);gap:12px;align-items:start}
+.day.today{border-color:var(--accent);border-width:2px}
+.dname{font-family:var(--display);font-weight:700;line-height:1.15}
+.dname small{display:block;font-family:var(--body);font-weight:500;color:var(--muted);font-size:.82rem}
+.entries{display:grid;gap:6px}
+.entry{display:flex;gap:10px;align-items:center;background:var(--sunk);border-radius:10px;padding:6px 6px 6px 10px;min-width:0}
+.entry .ml{font-family:var(--mono);font-size:.7rem;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);width:66px;flex:none}
+.entry a{font-weight:600;color:var(--ink);text-decoration:none;flex:1;min-width:0;overflow-wrap:anywhere}
+.entry a:hover{text-decoration:underline}
+.entry .sv{font-size:.8rem;color:var(--muted);white-space:nowrap}
+.addrow{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+
+/* grocery */
+.glist{display:grid;gap:18px;max-width:760px}
+.gtop{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:16px}
+.gtop h2{font-size:1.5rem;margin-right:auto}
+.addbar{display:flex;gap:8px;margin-bottom:18px;max-width:760px}
+.addbar input{flex:1;min-width:0;border:1px solid var(--line);background:var(--surface);border-radius:999px;padding:10px 16px}
+.aisle h3{font-size:.8rem;font-family:var(--mono);text-transform:uppercase;letter-spacing:.08em;color:var(--muted);margin-bottom:6px;font-weight:500}
+.gitems{list-style:none;margin:0;padding:0;background:var(--surface);border:1px solid var(--line);border-radius:12px;overflow:hidden}
+.gitems li{display:flex;align-items:center;gap:10px;padding:10px 8px 10px 12px;border-top:1px solid var(--line)}
+.gitems li:first-child{border-top:0}
+.gitems label{display:flex;gap:10px;align-items:flex-start;flex:1;min-width:0;cursor:pointer}
+.gitems input{width:20px;height:20px;accent-color:var(--accent);flex:none;margin-top:2px}
+.gitems .for{display:block;font-size:.78rem;color:var(--muted)}
+.gitems li.done .t{text-decoration:line-through;color:var(--muted)}
+
+.choose{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:14px}
+.choice{text-align:left;background:var(--surface);border:2px solid var(--line);border-radius:var(--r);padding:20px;cursor:pointer;display:grid;gap:6px}
+.choice:hover{border-color:var(--accent)}
+.choice b{font-family:var(--display);font-size:1.3rem}
+.choice span{color:var(--muted)}
+.helpbox{background:var(--sunk);border-radius:10px;padding:10px 14px;font-size:.92rem}
+.sourcelink{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:12px;background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:8px 8px 8px 12px;font-size:.9rem}
+.sourcelink .lbl{font-family:var(--mono);font-size:.7rem;text-transform:uppercase;letter-spacing:.07em;color:var(--muted)}
+.sourcelink a{flex:1 1 200px;min-width:0;overflow-wrap:anywhere}
+.cats{display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin-top:12px}
+.cats > .lbl{font-family:var(--mono);font-size:.7rem;text-transform:uppercase;letter-spacing:.07em;color:var(--muted);margin-right:4px}
+.lbl-chip{display:inline-flex;align-items:center;gap:2px;background:var(--sunk);border:1px solid var(--line);border-radius:6px;padding:2px 4px 2px 9px;font-size:.85rem;font-weight:600;line-height:1.5}
+.cats > .lbl-chip{padding-right:9px}
+.lbl-chip button{border:0;background:transparent;color:var(--muted);cursor:pointer;font-size:1rem;line-height:1;padding:0 4px;border-radius:4px}
+.lbl-chip button:hover{color:var(--danger);background:var(--surface)}
+.lp{position:relative}
+.lp-menu li.lp-group{font-family:var(--mono);font-size:.68rem;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);cursor:default;padding:10px 10px 2px}
+.lp-g{margin-left:8px;color:var(--muted);font-size:.75rem}
+.lbl-g{font-family:var(--mono);font-size:.62rem;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);margin-right:5px}
+.lbl-g:empty{display:none}
+.kicker{font-family:var(--mono);font-size:.68rem;text-transform:uppercase;letter-spacing:.07em;color:var(--accent)}
+.facets{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:12px}
+.facet{display:flex;flex-direction:column;gap:3px;font-size:.75rem;font-weight:600;color:var(--muted);flex:1 1 150px;max-width:240px}
+.facet select{font-size:.9rem;font-weight:500;color:var(--ink);background:var(--surface)}
+.lp-box{display:flex;flex-wrap:wrap;gap:6px;align-items:center;border:1px solid var(--line);background:var(--bg);border-radius:10px;padding:6px 8px;min-height:44px}
+.lp-box:focus-within{border-color:var(--accent)}
+.lp-chips{display:contents}
+.lp-in{flex:1 1 140px;min-width:0;border:0;background:transparent;padding:4px;outline:none}
+.lp-menu{position:absolute;left:0;right:0;top:calc(100% + 4px);z-index:8;list-style:none;margin:0;padding:4px;background:var(--surface);border:1px solid var(--line);border-radius:10px;max-height:240px;overflow:auto;box-shadow:0 8px 24px rgb(0 0 0 / .18)}
+.lp-menu li{padding:7px 10px;border-radius:7px;cursor:pointer}
+.lp-menu li.hi{background:var(--sunk)}
+.lp-menu li.create{color:var(--accent);font-weight:600}
+.invite select{border-radius:999px}
+.rolesel{border:1px solid var(--line);background:var(--surface);border-radius:8px;padding:4px 8px;font-size:.85rem;font-weight:600}
+.people .who{flex:1;min-width:0;overflow-wrap:anywhere}
+.roles{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:8px;margin:0}
+.roles div{background:var(--sunk);border-radius:10px;padding:8px 12px}
+.roles dt{font-weight:700;font-size:.9rem}
+.roles dd{margin:0;font-size:.82rem;color:var(--muted)}
+.sendbox{display:grid;gap:8px;border:2px solid var(--accent);border-radius:12px;padding:12px;font-size:.92rem}
+.invmsg{margin:0;white-space:pre-wrap;overflow-wrap:anywhere;font-family:var(--body);font-size:.88rem;background:var(--sunk);border-radius:8px;padding:10px 12px;user-select:all}
+.results{list-style:none;margin:0;padding:0;display:grid;gap:6px}
+.results li{display:flex;gap:10px;align-items:center;background:var(--sunk);border-radius:10px;padding:6px 6px 6px 12px;min-height:42px}
+.results .who{flex:1;min-width:0;overflow-wrap:anywhere}
+.reqs{display:grid;gap:8px;border:2px solid var(--butter);border-radius:12px;padding:10px}
+.reqs h4{margin:0;font-family:var(--display)}
+.people{list-style:none;margin:0;padding:0;display:grid;gap:6px}
+.people li{display:flex;gap:10px;align-items:center;background:var(--sunk);border-radius:10px;padding:6px 6px 6px 12px;min-height:40px}
+.people li > span:first-child{flex:1;min-width:0;overflow-wrap:anywhere}
+.pill{font-size:.75rem;font-weight:600;border-radius:999px;padding:2px 9px;background:var(--surface);color:var(--muted);white-space:nowrap}
+.pill.ok{background:var(--accent);color:var(--accent-ink)}
+.toggle{display:flex;gap:8px;align-items:center;font-weight:600;cursor:pointer}
+.toggle input{width:18px;height:18px;accent-color:var(--accent)}
+.codebox summary{cursor:pointer;font-weight:600;color:var(--accent)}
+.bookmenu{position:relative}
+.bookbtn{cursor:pointer;background:transparent;}
+.bm{position:absolute;left:0;top:calc(100% + 6px);z-index:12;min-width:260px;max-width:min(340px,calc(100vw - 32px));background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:6px;box-shadow:0 10px 30px rgb(0 0 0 / .2);display:grid}
+.bm-label{font-family:var(--mono);font-size:.68rem;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);padding:6px 10px 4px}
+.bm button{display:flex;gap:8px;align-items:center;text-align:left;border:0;background:transparent;padding:9px 10px;border-radius:8px;cursor:pointer;font-weight:600;color:var(--ink);overflow-wrap:anywhere}
+.bm button:hover,.bm button:focus-visible{background:var(--sunk);outline:none}
+.bm button[aria-checked="true"]{color:var(--accent)}
+.bm-check{width:16px;flex:none;text-align:center;color:var(--accent)}
+.bm hr{border:0;border-top:1px solid var(--line);margin:4px 2px}
+.bookbtn{font-family:var(--body);font-weight:600;font-size:.9rem;color:var(--accent);text-decoration:none;border:1px solid var(--line);border-radius:999px;padding:3px 12px;white-space:nowrap;max-width:60vw;overflow:hidden;text-overflow:ellipsis}
+.bookbtn:hover{border-color:var(--accent)}
+.brand{flex-wrap:wrap}
+.startwrap{max-width:860px;margin:0 auto;display:grid;gap:20px}
+.starthead h2{font-size:clamp(1.6rem,4vw,2.2rem);margin-bottom:8px}
+.starthead p{margin:0;color:var(--muted);max-width:60ch}
+.members{display:flex;gap:6px;flex-wrap:wrap}
+.codeRow{display:flex;gap:10px;align-items:center;flex-wrap:wrap;background:var(--sunk);border-radius:10px;padding:8px 8px 8px 12px}
+.codeRow code{font-family:var(--mono);font-size:1.2rem;letter-spacing:.08em;flex:1 1 auto}
+.linkTxt{flex:1 1 200px;min-width:0;overflow-wrap:anywhere;font-size:.85rem;color:var(--muted);user-select:all}
+.note{margin:0;font-size:.88rem;color:var(--muted);border-left:3px solid var(--butter);padding-left:10px}
+.booklist{list-style:none;margin:0;padding:0;display:grid;gap:6px}
+.booklist li{display:flex;justify-content:space-between;align-items:center;gap:10px;background:var(--sunk);border-radius:10px;padding:6px 6px 6px 12px;font-weight:600}
+.suggestbar{display:flex;gap:10px;align-items:center;flex-wrap:wrap;background:var(--sunk);border-radius:12px;padding:10px 12px;font-size:.9rem}
+.suggestbar > span:first-child{flex:1 1 240px}
+.inferbar{background:var(--sunk);border-left:4px solid var(--butter);border-radius:10px;padding:10px 14px;margin-bottom:14px;font-size:.92rem}
+.review{background:var(--butter);color:var(--butter-ink);border-radius:6px;padding:0 7px;font-weight:600;font-size:.75rem}
+.reviewbar{display:flex;gap:10px;align-items:center;flex-wrap:wrap;background:var(--butter);color:var(--butter-ink);border-radius:12px;padding:10px 14px;margin-bottom:18px}
+.reviewbar span{margin-right:auto;font-weight:600}
+.ibx{display:grid;gap:22px;max-width:860px}
+.ibx-form{display:grid;gap:12px}
+.ilist{list-style:none;margin:0;padding:0;display:grid;gap:10px}
+.ilist li{display:flex;gap:12px;align-items:flex-start;flex-wrap:wrap;border-top:1px solid var(--line);padding-top:10px}
+.ilist li:first-child{border-top:0;padding-top:0}
+.imain{flex:1 1 280px;min-width:0}
+.iurl{overflow-wrap:anywhere}
+.inote{font-size:.9rem;margin-top:4px;color:var(--ink);white-space:pre-wrap;overflow-wrap:anywhere}
+.inote.warn{color:var(--muted);font-style:italic}
+.iact{display:flex;gap:6px;align-items:center;flex-wrap:wrap}
+.log{list-style:none;margin:0;padding:0;display:grid;gap:4px;font-size:.9rem;max-height:320px;overflow:auto}
+.log li.ok{color:var(--accent)} .log li.skip{color:var(--muted)} .log li.err{color:var(--danger)} .log li.wip{color:var(--muted)}
+/* editor */
+.editor{max-width:820px;margin:0 auto;display:grid;gap:22px}
+.box{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:18px;display:grid;gap:14px}
+.box h3{font-size:1.15rem}
+.box .hint{margin:-6px 0 0;color:var(--muted);font-size:.9rem}
+.claude-box{border-color:var(--accent);border-width:2px}
+.field{display:grid;gap:5px;min-width:0}
+.field label,.field .lbl{font-weight:600;font-size:.9rem}
+.field small{color:var(--muted);font-size:.8rem}
+.field input,.field textarea{width:100%;border:1px solid var(--line);background:var(--bg);border-radius:10px;padding:9px 12px}
+.field textarea{min-height:110px;resize:vertical;line-height:1.45}
+.row{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:12px}
+.drop{border:2px dashed var(--line);border-radius:12px;padding:14px;display:flex;gap:12px;align-items:center;flex-wrap:wrap;cursor:pointer;background:var(--bg)}
+.drop.over{border-color:var(--accent)}
+.shots{display:flex;gap:8px;flex-wrap:wrap}
+.shots figure{margin:0;position:relative;width:72px;height:96px;border-radius:8px;overflow:hidden;background:var(--sunk)}
+.shots img{width:100%;height:100%;object-fit:cover}
+.shots figcaption{position:absolute;left:3px;bottom:3px;font-size:.62rem;font-family:var(--mono);background:var(--ink);color:var(--bg);border-radius:4px;padding:0 4px}
+.shots button{position:absolute;top:3px;right:3px;border:0;border-radius:50%;width:22px;height:22px;background:var(--ink);color:var(--bg);cursor:pointer;font-size:.8rem;line-height:1}
+.msg{font-size:.9rem;padding:8px 12px;border-radius:10px;background:var(--sunk);display:inline-block}
+.msg.err{color:var(--danger)}
+.savebar{display:flex;gap:10px;justify-content:flex-end;flex-wrap:wrap;position:sticky;bottom:0;padding-block:12px calc(12px + env(safe-area-inset-bottom,0px));background:var(--bg);border-top:1px solid var(--line)}
+.photo-prev{width:120px;aspect-ratio:4/3;border-radius:10px;overflow:hidden;background:var(--sunk);display:grid;place-items:center;color:var(--muted);font-size:.8rem}
+.photo-prev img{width:100%;height:100%;object-fit:cover}
+.bookpick{display:flex;gap:6px;flex-wrap:wrap;align-items:center}
+.spin{width:14px;height:14px;border:2px solid currentColor;border-right-color:transparent;border-radius:50%;animation:sp .8s linear infinite;display:inline-block;vertical-align:-2px}
+@keyframes sp{to{transform:rotate(360deg)}}
+@media (max-width:760px){.hero,.cols{grid-template-columns:minmax(0,1fr)}.brand h1{font-size:1.3rem}.day{grid-template-columns:minmax(0,1fr)}.entry .ml{width:auto}}
+@media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
+</style>
+
+<div class="wrap">
+  <header class="top">
+    <div class="toprow">
+      <button class="btn small homebtn" id="refreshBtn" type="button" aria-label="Refresh"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 12a8 8 0 1 1-2.34-5.66"/><path d="M20 4v5h-5"/></svg>Refresh</button>
+      <div class="brand"><h1><a href="#" class="homelink">Family Recipe Box</a></h1><div class="bookmenu" id="bookWrap" hidden><button class="bookbtn" id="bookBtn" type="button" aria-haspopup="menu" aria-expanded="false" aria-controls="bookMenu"></button><div class="bm" id="bookMenu" role="menu" hidden></div></div><span class="count" id="count"></span></div>
+      <div class="search" id="searchWrap">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+        <input id="q" type="search" placeholder="Search recipes, ingredients, tags" aria-label="Search recipes">
+      </div>
+      <button class="btn primary" id="addBtn" type="button">+ Add recipe</button>
+    </div>
+    <nav class="tabs" aria-label="Sections">
+      <a class="tab" href="#" data-tab="list">Recipes</a>
+      <a class="tab" href="#plan" data-tab="plan">Meal plan</a>
+      <a class="tab" href="#grocery" data-tab="grocery">Grocery list <span class="badge" id="gbadge" hidden></span></a>
+      <a class="tab" href="#inbox" data-tab="inbox">Inbox <span class="badge" id="ibadge" hidden></span></a>
+    </nav>
+  </header>
+  <main id="view"></main>
+</div>
+
+<script>
+(() => {
+const $ = s => document.querySelector(s);
+const view = $('#view');
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const store = { get(k,d){ try{ const v = localStorage.getItem(k); return v==null ? d : JSON.parse(v); }catch{ return d; } }, set(k,v){ try{ localStorage.setItem(k, JSON.stringify(v)); }catch{} } };
+const state = { myEmail: '', myHash: '', inviteCheck: 'idle', bookMeta: {}, invites: [], memberInfo: {}, wasMember: false, books: [], bookId: '', bookName: '', members: [], profileReady: false, recipes: [], plan: [], grocery: [], inbox: [], loaded: false, slow: false, error: '', q: '', tag: '', book: '', mine: false,
+  db: null, user: null, me: null, canWrite: true, appWrite: true, myRole: 'contributor', assets: null, sample: null, imgOK: false, imgMax: 4, names: {}, units: store.get('units','orig') };
+const newId = p => p + Date.now().toString(36) + Math.random().toString(36).slice(2,8);
+function toast(t){ const el = document.createElement('div'); el.className='toast'; el.textContent=t; el.setAttribute('role','status'); document.body.append(el); setTimeout(()=>el.remove(), 2600); }
+
+/* ---------- helpers ---------- */
+function platform(url){
+  try{ const h = new URL(url).hostname.replace(/^www\.|^m\./,'');
+    if(/instagram/.test(h)) return 'Instagram'; if(/tiktok/.test(h)) return 'TikTok';
+    if(/youtu/.test(h)) return 'YouTube'; if(/facebook|fb\.watch/.test(h)) return 'Facebook';
+    if(/pinterest|pin\.it/.test(h)) return 'Pinterest'; if(/x\.com|twitter/.test(h)) return 'X';
+    return h; }catch{ return ''; }
+}
+const safeUrl = u => /^https?:\/\//i.test(u||'') ? u : '';
+const normUrl = u => { u = String(u||'').trim(); if(!u) return ''; if(/^https?:\/\//i.test(u)) return u; if(/^[\w-]+(\.[\w-]+)+(\/|$)/.test(u)) return 'https://'+u; return u; };
+const imgSrc = r => r && r.photoId ? '/_blob/' + r.photoId : '';
+const mins = m => { m = Number(m)||0; if(!m) return '—'; return m >= 60 ? Math.floor(m/60)+'h'+(m%60?' '+(m%60)+'m':'') : m+' min'; };
+const initials = t => (t||'?').trim().split(/\s+/).slice(0,2).map(w=>w[0]).join('').toUpperCase();
+const byId = id => state.recipes.find(r => r.id === id);
+/* Google Images search for a dish, and a box that accepts a pasted image */
+const googleImg = t => 'https://www.google.com/search?tbm=isch&q=' + encodeURIComponent(((t||'').trim() || 'recipe') + ' recipe');
+function pasteBoxHTML(id){ return `<div class="pastebox" id="${id}" contenteditable="true" role="textbox" aria-label="Paste a copied image here" data-ph="Tap here, then Paste your copied image"></div>`; }
+function bindPasteBox(el, onFile){
+  if(!el) return;
+  el.addEventListener('paste', e => {
+    e.preventDefault(); e.stopPropagation();
+    const dt = e.clipboardData; let f = null;
+    if(dt){ f = [...(dt.files||[])].find(x => x.type.startsWith('image/')) || null;
+      if(!f) for(const it of (dt.items||[])){ if(it.kind==='file' && it.type.startsWith('image/')){ f = it.getAsFile(); break; } } }
+    el.textContent = '';
+    if(f) onFile(f);
+    else toast(dt && /https?:/.test(dt.getData('text/plain')||'') ? 'That pasted the image’s web address, not the image. Use “Copy image”, or save it and choose the file.' : 'Nothing to paste. Copy an image first (long-press it, then Copy).');
+  });
+  el.addEventListener('input', () => { if(el.textContent) el.textContent = ''; });
+  el.addEventListener('drop', e => { e.preventDefault(); const f = [...(e.dataTransfer?.files||[])].find(x=>x.type.startsWith('image/')); if(f) onFile(f); });
+}
+/* A designed cover for recipes with no photo: colour from the dish name, a plate, the name. */
+function coverHTML(r, big){
+  const t = (r && r.title) || 'Untitled recipe'; let h = 0; for(const c of t) h = (h*31 + c.charCodeAt(0)) % 360;
+  return `<div class="cover${big?' big':''}" style="--h:${h}" role="img" aria-label="${esc(t)}"><svg viewBox="0 0 120 120" aria-hidden="true"><circle cx="60" cy="60" r="52" fill="none" stroke="currentColor" stroke-width="3" opacity=".55"/><circle cx="60" cy="60" r="36" fill="none" stroke="currentColor" stroke-width="2" opacity=".35"/><path d="M14 22v22M8 22v14a6 6 0 0 0 12 0V22M106 22c-6 4-8 12-8 20h8v38" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" opacity=".55"/></svg><span>${esc(t)}</span></div>`; }
+
+/* dates (local) */
+const iso = d => d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
+const fromIso = s => { const [y,m,d] = s.split('-').map(Number); return new Date(y, m-1, d); };
+const addDays = (d,n) => { const x = new Date(d); x.setDate(x.getDate()+n); return x; };
+const monday = d => { const x = new Date(d.getFullYear(), d.getMonth(), d.getDate()); const wd = (x.getDay()+6)%7; return addDays(x, -wd); };
+const dayName = d => d.toLocaleDateString(undefined,{weekday:'long'});
+const shortDate = d => d.toLocaleDateString(undefined,{month:'short', day:'numeric'});
+const MEALS = ['Breakfast','Lunch','Dinner','Snack'];
+
+/* ---------- quantities: parse, scale, convert ---------- */
+const UF = {'½':.5,'⅓':1/3,'⅔':2/3,'¼':.25,'¾':.75,'⅛':.125,'⅜':.375,'⅝':.625,'⅞':.875};
+const NUM = String.raw`(?:\d+\s+\d+\/\d+|\d+\/\d+|\d+(?:\.\d+)?\s*[½⅓⅔¼¾⅛⅜⅝⅞]|\d*\.\d+|\d+|[½⅓⅔¼¾⅛⅜⅝⅞])`;
+const QRE = new RegExp('^\\s*(' + NUM + ')(?:\\s*(?:-|–|to)\\s*(' + NUM + '))?');
+function val(s){ s=s.trim(); let m;
+  if((m=s.match(/^(\d+)\s+(\d+)\/(\d+)$/))) return +m[1] + m[2]/m[3];
+  if((m=s.match(/^(\d+)\/(\d+)$/))) return m[1]/m[2];
+  if((m=s.match(/^(\d+(?:\.\d+)?)\s*([½⅓⅔¼¾⅛⅜⅝⅞])$/))) return +m[1] + UF[m[2]];
+  if(UF[s]!=null) return UF[s]; return parseFloat(s); }
+function fmt(n){ if(!(n>0)) return '0'; const w=Math.floor(n+1e-9), f=n-w;
+  if(n>=20) return String(Math.round(n));
+  const fr=[[0,''],[.125,'⅛'],[.25,'¼'],[1/3,'⅓'],[.375,'⅜'],[.5,'½'],[.625,'⅝'],[2/3,'⅔'],[.75,'¾'],[.875,'⅞'],[1,'']];
+  let best=fr[0]; for(const x of fr) if(Math.abs(f-x[0])<Math.abs(f-best[0])) best=x;
+  if(Math.abs(f-best[0])>.04) return String(Math.round(n*100)/100);
+  const whole = best[0]===1 ? w+1 : w; const s = best[1];
+  return whole ? (s ? whole+' '+s : String(whole)) : (s || '0'); }
+const UNITS = [
+  [/^(cups?|c)\b\.?/i, 'cup', 'vol', 240], [/^(tablespoons?|tbsps?|tbs|tbl)\b\.?/i, 'tbsp', 'vol', 15], [/^(teaspoons?|tsps?)\b\.?/i, 'tsp', 'vol', 5],
+  [/^(fl\.?\s?oz|fluid ounces?)\b\.?/i, 'fl oz', 'vol', 30], [/^(pints?|pt)\b\.?/i, 'pint', 'vol', 473], [/^(quarts?|qt)\b\.?/i, 'quart', 'vol', 946],
+  [/^(ounces?|oz)\b\.?/i, 'oz', 'wt', 28.35], [/^(pounds?|lbs?)\b\.?/i, 'lb', 'wt', 453.6],
+  [/^(grams?|g)\b\.?/i, 'g', 'wt', 1, true], [/^(kilograms?|kgs?)\b\.?/i, 'kg', 'wt', 1000, true],
+  [/^(milliliters?|millilitres?|ml)\b\.?/i, 'ml', 'vol', 1, true], [/^(liters?|litres?|l)\b\.?/i, 'l', 'vol', 1000, true]];
+const r5 = n => n < 20 ? Math.round(n) : Math.round(n/5)*5;
+function toMetric(q, u){ const base = q*u[3]; if(u[2]==='wt') return base>=1000 ? [Math.round(base/100)/10,'kg'] : [r5(base),'g']; return base>=1000 ? [Math.round(base/100)/10,'l'] : [r5(base),'ml']; }
+function toUS(q, u){ const base = q*u[3];
+  if(u[2]==='wt') return base >= 454 ? [Math.round(base/453.6*4)/4,'lb'] : [Math.round(base/28.35*4)/4 || .25,'oz'];
+  if(base >= 60) return [Math.round(base/240*4)/4,'cup']; if(base >= 15) return [Math.round(base/15*2)/2,'tbsp']; return [Math.round(base/5*4)/4 || .25,'tsp']; }
+/* returns {qty:string|null, rest:string} with scale k and unit mode applied */
+function shapeLine(line, k, mode){
+  const m = line.match(QRE);
+  if(!m) return { qty:null, rest: line };
+  let a = val(m[1])*k, b = m[2] ? val(m[2])*k : null;
+  let rest = line.slice(m[0].length);
+  if(mode !== 'orig'){
+    const lead = rest.match(/^\s*/)[0], body = rest.slice(lead.length);
+    const u = UNITS.find(x => x[0].test(body));
+    if(u && ((mode==='metric') !== !!u[4])){
+      const conv = mode==='metric' ? toMetric : toUS;
+      const [na, nu] = conv(a, u); const nb = b!=null ? conv(b, u)[0] : null;
+      const unitTxt = body.match(u[0])[0];
+      const plural = (na > 1 && /cup|pint|quart|lb/.test(nu)) ? (nu==='lb'?'lb':nu+'s') : nu;
+      return { qty: (Number.isInteger(na) || nu==='l' || nu==='kg' ? String(na) : fmt(na)) + (nb!=null ? '–'+(Number.isInteger(nb)?nb:fmt(nb)) : '') + ' ' + plural, rest: body.slice(unitTxt.length) };
+    }
+  }
+  return { qty: fmt(a) + (b!=null ? '–'+fmt(b) : ''), rest, raw: k===1 ? m[0].trim() : null };
+}
+function lineHTML(line, k, mode){ const s = shapeLine(line, k, mode); if(s.qty==null) return esc(line);
+  return '<span class="qty">'+esc(s.raw || s.qty)+'</span>'+esc(s.rest); }
+function lineText(line, k, mode){ const s = shapeLine(line, k, mode); return s.qty==null ? line : ((s.raw||s.qty) + s.rest); }
+function convTemps(text, mode){
+  if(mode==='metric') return text.replace(/(\d{3})\s*°?\s*F\b/g, (_,f) => r5((f-32)*5/9)+'°C');
+  if(mode==='us') return text.replace(/(\d{2,3})\s*°?\s*C\b/g, (_,c) => Math.round((c*9/5+32)/5)*5+'°F');
+  return text; }
+
+/* aisle guess for items added without Claude */
+const LABEL_GROUPS = {
+  'Course': ['Breakfast','Brunch','Lunch','Dinner','Appetizer','Side dish','Soup','Salad','Sandwich','Dessert','Baking','Snack','Drink','Sauce'],
+  'Region': ['American','Southern','Cajun & Creole','Tex-Mex','Mexican','Latin American','Caribbean','Italian','French','Spanish','Greek','Mediterranean','Middle Eastern','North African','Indian','Thai','Chinese','Japanese','Korean','Vietnamese','Filipino'],
+  'Style': ['Comfort food','Healthy','Light','Hearty','Spicy','Creamy','Cheesy','Crispy','Fresh','Smoky','Sweet & savory','Indulgent','Budget friendly','Date night'],
+  'Main ingredient': ['Chicken','Beef','Pork','Seafood','Pasta','Rice','Beans & lentils','Eggs','Vegetables'],
+  'Method': ['Air fryer','Slow cooker','Instant Pot','Grill','One pan','Sheet pan','No cook','Baked'],
+  'Diet': ['Vegetarian','Vegan','Gluten-free','Dairy-free','High protein','Low carb'],
+  'Occasion': ['Family favorite','Quick (30 min or less)','Meal prep','Kid friendly','Holiday','Party','Game day'] };
+const GROUP_ORDER = Object.keys(LABEL_GROUPS);
+const PRESET_LABELS = GROUP_ORDER.flatMap(g => LABEL_GROUPS[g]);
+function groupOf(l){ const k = String(l||'').toLowerCase();
+  for(const g of GROUP_ORDER) if(LABEL_GROUPS[g].some(x => x.toLowerCase()===k)) return g;
+  const custom = (state.bookMeta && state.bookMeta.labelGroups) || {};
+  for(const [name, g] of Object.entries(custom)) if(name.toLowerCase()===k && GROUP_ORDER.includes(g)) return g;
+  return 'Other'; }
+const TAG_RULE = `"course": the type of dish, one of: ${LABEL_GROUPS.Course.join(', ')},
+ "region": the culinary tradition the DISH itself comes from historically, one of: ${LABEL_GROUPS.Region.join(', ')} (a different short region only if none fit, e.g. "Peruvian"). Judge only by the dish's history and roots. Ignore who made the video, where they live or where it was filmed: carbonara is Italian even when a Texan films it in Dallas; birria is Mexican; a smash burger is American. For a fusion dish, pick the tradition it mainly comes from.,
+ "style": [1-2 words for its character, from: ${LABEL_GROUPS.Style.join(', ')} (a new one only if none fit)],
+ "tags": [any others that clearly fit, from: ${[...LABEL_GROUPS['Main ingredient'], ...LABEL_GROUPS.Method, ...LABEL_GROUPS.Diet, ...LABEL_GROUPS.Occasion].join(', ')}]`;
+/* Combine Claude's course / region / style with its other tags, remembering which group any new name belongs to */
+function facetTags(out){
+  const add = {}; const list = [];
+  const push = (v, g) => { if(!v) return; const c = canonLabel(v); if(!c) return; list.push(c); if(g && groupOf(c)==='Other') add[c] = g; };
+  push(out.course, 'Course'); push(out.region, 'Region');
+  (Array.isArray(out.style) ? out.style : out.style ? [out.style] : []).forEach(v => push(v, 'Style'));
+  (Array.isArray(out.tags) ? out.tags : []).forEach(v => push(v));
+  if(Object.keys(add).length && state.bookId){ bdoc('meta/info').update({ labelGroups: add }).catch(()=>{}); state.bookMeta.labelGroups = { ...(state.bookMeta.labelGroups||{}), ...add }; }
+  return canonList(list).slice(0, 10);
+}
+function usedLabels(){ return state.recipes.flatMap(r => r.tags||[]); }
+function allLabels(){ const seen = new Map();
+  for(const l of [...PRESET_LABELS, ...usedLabels()]){ const t = String(l).trim(); if(t && !seen.has(t.toLowerCase())) seen.set(t.toLowerCase(), t); }
+  return [...seen.values()].sort((a,b)=>a.localeCompare(b)); }
+function canonLabel(t){ t = String(t||'').trim().replace(/\s+/g,' ').slice(0,40); if(!t) return '';
+  const hit = allLabels().find(l => l.toLowerCase()===t.toLowerCase()); return hit || (t.charAt(0).toUpperCase() + t.slice(1)); }
+const canonList = a => { const out=[]; for(const x of (a||[])){ const c = canonLabel(x); if(c && !out.some(o=>o.toLowerCase()===c.toLowerCase())) out.push(c); } return out; };
+/* Label picker: pick from the list, or type a new one and press Enter (like Jira labels) */
+function labelPicker(host, selected, onChange){
+  if(!host) return; let hi = 0;
+  host.innerHTML = `<div class="lp"><div class="lp-box"><span class="lp-chips"></span><input class="lp-in" id="${host.id}-in" placeholder="Add a category…" autocomplete="off" role="combobox" aria-expanded="false" aria-autocomplete="list" aria-label="Add a category"></div><ul class="lp-menu" role="listbox" hidden></ul></div>`;
+  const chips = host.querySelector('.lp-chips'), inp = host.querySelector('.lp-in'), menu = host.querySelector('.lp-menu');
+  const changed = () => { onChange(selected.slice()); draw(); };
+  const draw = () => { chips.innerHTML = selected.map((l,i)=>`<span class="lbl-chip">${esc(l)}<button type="button" data-i="${i}" aria-label="Remove ${esc(l)}">×</button></span>`).join('');
+    chips.querySelectorAll('button').forEach(b => b.onclick = () => { selected.splice(+b.dataset.i,1); changed(); inp.focus(); }); };
+  const options = () => { const q = inp.value.trim().toLowerCase(); const sel = new Set(selected.map(x=>x.toLowerCase()));
+    let o = allLabels().filter(l => !sel.has(l.toLowerCase()) && (!q || l.toLowerCase().includes(q)));
+    if(q) o.sort((a,b) => (b.toLowerCase().startsWith(q)) - (a.toLowerCase().startsWith(q)));
+    else { const gi = l => { const g = groupOf(l); return g==='Other' ? 99 : GROUP_ORDER.indexOf(g); }; const pi = l => PRESET_LABELS.findIndex(x=>x.toLowerCase()===l.toLowerCase());
+      o.sort((a,b) => gi(a)-gi(b) || (pi(a)<0?999:pi(a)) - (pi(b)<0?999:pi(b)) || a.localeCompare(b)); }
+    o = o.slice(0, q ? 40 : 200);
+    if(q && !allLabels().some(l => l.toLowerCase()===q) && !sel.has(q)) o.push({ create: inp.value.trim() });
+    return o; };
+  const showMenu = () => { const o = options(); if(!o.length){ menu.hidden = true; inp.setAttribute('aria-expanded','false'); return; }
+    hi = Math.max(0, Math.min(hi, o.length-1));
+    let lastG = ''; const browsing = !inp.value.trim();
+    menu.innerHTML = o.map((x,i)=>{ let head = '';
+      if(browsing && typeof x==='string'){ const g = groupOf(x); if(g!==lastG){ lastG = g; head = `<li class="lp-group" role="presentation">${esc(g)}</li>`; } }
+      return head + `<li role="option" data-i="${i}" class="${i===hi?'hi':''}${typeof x==='string'?'':' create'}">${typeof x==='string' ? esc(x) + (browsing ? '' : `<small class="lp-g">${esc(groupOf(x))}</small>`) : '+ Create “'+esc(x.create)+'”'}</li>`; }).join('');
+    menu.hidden = false; inp.setAttribute('aria-expanded','true');
+    menu.querySelectorAll('li[data-i]').forEach(li => li.onmousedown = e => { e.preventDefault(); pick(o[+li.dataset.i]); });
+    const h = menu.querySelector('.hi'); if(h) h.scrollIntoView({block:'nearest'}); };
+  const pick = x => { const v = typeof x==='string' ? x : canonLabel(x.create);
+    if(v && !selected.some(sx => sx.toLowerCase()===v.toLowerCase())) selected.push(v);
+    inp.value = ''; hi = 0; changed(); showMenu(); };
+  inp.addEventListener('focus', showMenu);
+  inp.addEventListener('input', () => { hi = 0; showMenu(); });
+  inp.addEventListener('blur', () => setTimeout(() => { menu.hidden = true; inp.setAttribute('aria-expanded','false'); }, 120));
+  inp.addEventListener('keydown', e => { const o = options();
+    if(e.key==='ArrowDown'){ e.preventDefault(); hi = Math.min(o.length-1, hi+1); showMenu(); }
+    else if(e.key==='ArrowUp'){ e.preventDefault(); hi = Math.max(0, hi-1); showMenu(); }
+    else if(e.key==='Enter' || e.key===','){ e.preventDefault(); if(e.key===',' && !inp.value.trim()) return; if(o[hi]) pick(o[hi]); }
+    else if(e.key==='Backspace' && !inp.value && selected.length){ selected.pop(); changed(); }
+    else if(e.key==='Escape'){ menu.hidden = true; } });
+  draw();
+}
+const AISLES = ['Produce','Meat & Seafood','Dairy & Eggs','Bakery','Pantry','Spices & Seasonings','Canned & Jarred','Frozen','Snacks','Drinks','Household','Other'];
+const AISLE_KW = [
+  ['Produce',/onion|garlic|lemon|lime|apple|banana|tomato|potato|carrot|celery|lettuce|spinach|kale|herb|cilantro|parsley|basil|mint|ginger|pepper(?!corn)|avocado|cucumber|zucchini|mushroom|berr|scallion|shallot|cabbage|broccoli|cauliflower|squash|fruit|orange|jalape/i],
+  ['Meat & Seafood',/chicken|beef|pork|steak|bacon|sausage|turkey|lamb|shrimp|salmon|fish|tuna|cod|ground meat|prosciutto|ham\b/i],
+  ['Dairy & Eggs',/milk|cheese|butter|cream|yogurt|egg|parmesan|mozzarella|feta|ricotta/i],
+  ['Bakery',/bread|bun|tortilla|pita|bagel|baguette|naan|roll\b/i],
+  ['Spices & Seasonings',/salt|pepper|paprika|cumin|chili powder|oregano|thyme|cinnamon|nutmeg|seasoning|spice|flakes|turmeric|curry/i],
+  ['Canned & Jarred',/canned|can of|broth|stock|beans|tomato paste|salsa|jar/i],
+  ['Frozen',/frozen|ice cream/i],
+  ['Drinks',/juice|soda|coffee|tea\b|wine|beer/i],
+  ['Pantry',/flour|sugar|rice|pasta|noodle|oil|vinegar|soy sauce|honey|syrup|oats|baking|vanilla|cornstarch|sauce|nut|seed|chocolate/i]];
+const guessAisle = t => (AISLE_KW.find(([,re]) => re.test(t)) || ['Other'])[0];
+
+/* ---------- capabilities ---------- */
+async function boot(){
+  render();
+  const c = window.claude;
+  if(!c || !c.use){ state.error = 'Open the recipe box with the family link you were sent.'; state.loaded = true; render(); return; }
+  const [db, user, assets, sample] = await Promise.all(['db','user','assets','sample'].map(n => c.use(n).catch(()=>null)));
+  state.db = db; state.user = user; state.assets = assets; state.sample = sample;
+  if(user){ try{ state.me = await user.id(); }catch{} try{ state.isOwner = !!(await user.isOwner()); }catch{} try{ const me = await user.me(); state.myEmail = String((me && me.email) || '').trim().toLowerCase(); if(state.myEmail) state.myHash = await sha256(state.myEmail); }catch{} try{ const w = await user.can('data.write'); if(w===false){ state.canWrite=false; state.appWrite=false; } }catch{} }
+  if(sample){ try{ const l = await sample.limits(); state.imgOK = !!(l && l.images); state.imgMax = (l && l.images && l.images.maxCount) || 4; }catch{} }
+  if(!db || !state.me){ state.error = 'Open the recipe box with the family link you were sent.'; state.loaded = true; render(); return; }
+  if(SINGLE_BOOK){ await openHomeBook(); return; }
+  watchApprovals();
+  /* This device remembers your books, so the app opens straight into the last one you used */
+  const cached = store.get(cacheKey(), null); let serverSeen = false;
+  if(cached && Array.isArray(cached.books) && cached.books.length){
+    state.books = cached.books; state.profileReady = true;
+    const cur = cached.books.some(b => b.id===cached.current) ? cached.current : cached.books[0].id;
+    openBook(cur);
+  }
+  const t = setTimeout(()=>{ if(!state.profileReady){ state.slow = true; render(); } }, 10000);
+  profRef().onSnapshot(snap => {
+    if(snap.metadata.fromCache && !snap.exists && !state.profileReady) return;
+    if(!snap.metadata.fromCache && !snap.exists && !serverSeen && cached && Array.isArray(cached.books) && cached.books.length){
+      serverSeen = true; saveProfile(cached.books, cached.current).catch(()=>{}); return; }
+    if(!snap.metadata.fromCache) serverSeen = true;
+    clearTimeout(t); state.slow = false;
+    const p = snap.exists ? snap.data() : {};
+    if(snap.exists) remember(Array.isArray(p.books) ? p.books : [], p.current);
+    state.books = Array.isArray(p.books) ? p.books : [];
+    let cur = p.current; if(!state.books.some(b => b.id===cur)) cur = state.books[0] ? state.books[0].id : '';
+    const first = !state.inviteChecked; state.inviteChecked = true;
+    state.profileReady = true;
+    if(first && state.myHash){ state.inviteCheck = 'pending'; checkInvites().finally(() => { state.inviteCheck = 'done'; render(); }); }
+    if(cur !== state.bookId) openBook(cur); else softRender();
+  }, e => { clearTimeout(t); state.loaded = true; state.profileReady = true; state.error = 'Your recipe books could not be loaded (' + e.code + '). Reload the page to try again.'; render(); });
+}
+/* ---------- recipe books: each family has its own, joined with an invite code ---------- */
+const APP_URL = 'https://claude.ai/artifact/BsnCPc8SpQzbxbax1otjWW';
+/* One app, one recipe book: everyone who opens the link lands in the same book. */
+const SINGLE_BOOK = true;
+async function openHomeBook(){
+  const db = state.db;
+  try{
+    const home = await db.doc('app/home').get();
+    let id = home.exists ? (home.data().bookId || '') : '';
+    if(!id && state.isOwner){
+      const p = await profRef().get(); const pd = p.exists ? p.data() : {};
+      id = pd.current || ((pd.books||[])[0] || {}).id || '';
+      if(!id){ state.books = []; id = await createBook('Family Recipe Box'); }
+      await db.doc('app/home').set({ bookId: id, at: Date.now() });
+    }
+    if(!id){ state.error = 'The recipe box isn’t set up yet. Ask the person who shared it to open it once, then reload.'; state.loaded = true; state.profileReady = true; render(); return; }
+    state.books = [{ id, name: '' }]; state.profileReady = true; state.inviteCheck = 'done';
+    openBook(id);
+  }catch(e){ state.error = 'The recipe box could not be loaded (' + (e.code||'error') + '). Reload the page to try again.'; state.loaded = true; state.profileReady = true; render(); }
+}
+const bdoc = p => state.db.doc('books/' + state.bookId + '/' + p);
+const profRef = () => state.db.doc('data/users/' + state.me + '/profile');
+let unsubs = [], loadTimer = null, reqUnsub = null, reqDir = '';
+function newCode(){ const a = 'abcdefghjkmnpqrstuvwxyz23456789'; let s = ''; const r = new Uint32Array(12); crypto.getRandomValues(r); for(const x of r) s += a[x % a.length]; return s; }
+const cleanCode = c => String(c||'').toLowerCase().replace(/^.*#join-/,'').replace(/[^a-z0-9]/g,'').slice(0,24);
+const cacheKey = () => 'recipebox:' + state.me;
+const remember = (books, current) => store.set(cacheKey(), { books, current: current||'', at: Date.now() });
+async function saveProfile(books, current){ books = books.filter((b,i,a) => b && a.findIndex(x => x.id===b.id)===i); remember(books, current); await profRef().set({ books, current: current||'' , updatedAt: Date.now() }); }
+function openBook(id){
+  unsubs.forEach(u => { try{ u(); }catch{} }); unsubs = []; if(reqUnsub){ try{ reqUnsub(); }catch{} reqUnsub = null; } reqDir = ''; state.requests = [];
+  state.bookId = id; state.recipes = []; state.plan = []; state.grocery = []; state.inbox = []; state.members = []; state.bookName = '';
+  state.tag = ''; state.book = ''; draft = null; clearTimeout(loadTimer); state.bookMeta = {}; state.invites = []; state.memberInfo = {}; state.wasMember = false; state.canWrite = state.appWrite; state.myRole = 'contributor';
+  if(!id){ state.loaded = true; softRender(); return; }
+  state.loaded = false; state.slow = false;
+  loadTimer = setTimeout(()=>{ if(!state.loaded){ state.slow = true; render(); } }, 10000);
+  const base = 'books/' + id + '/', db = state.db;
+  const fail = e => { clearTimeout(loadTimer); state.loaded = true; state.error = 'This recipe book could not be loaded (' + e.code + '). Reload the page to try again.'; render(); };
+  unsubs.push(db.collection(base+'recipes').orderBy('createdAt','desc').onSnapshot(snap => {
+    state.recipes = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+    if(!snap.metadata.fromCache){ state.loaded = true; state.slow = false; clearTimeout(loadTimer); }
+    resolveNames(); softRender(); }, fail));
+  unsubs.push(db.collection(base+'plan').onSnapshot(snap => { state.plan = snap.docs.map(d => ({ id: d.id, ...d.data() })); softRender(); }, ()=>{}));
+  unsubs.push(db.collection(base+'inbox').onSnapshot(snap => { state.inbox = snap.docs.map(d => ({ id: d.id, ...d.data() })); softRender(); }, ()=>{}));
+  unsubs.push(db.collection(base+'grocery').onSnapshot(snap => { state.grocery = snap.docs.map(d => ({ id: d.id, ...d.data() })); softRender(); }, ()=>{}));
+  unsubs.push(db.doc(base+'meta/info').onSnapshot(s => { state.bookMeta = (s.exists && s.data()) || {}; state.bookName = state.bookMeta.name || ''; applyRole();
+    const dId = state.bookMeta.dirId || '';
+    if(dId !== reqDir){ if(reqUnsub){ try{ reqUnsub(); }catch{} reqUnsub = null; } reqDir = dId; state.requests = [];
+      if(dId) reqUnsub = db.collection('dirreq/'+dId+'/requests').onSnapshot(r => { state.requests = r.docs.map(d => ({ uid: d.id, ...d.data() })).filter(x => !state.members.includes(x.uid)); resolveReqNames(); softRender(); }, ()=>{}); }
+    softRender(); }, ()=>{}));
+  unsubs.push(db.collection(base+'members').onSnapshot(s => {
+    state.members = s.docs.map(d => d.id); state.memberInfo = Object.fromEntries(s.docs.map(d => [d.id, d.data()]));
+    const inIt = state.members.includes(state.me);
+    if(!s.metadata.fromCache && state.wasMember && !inIt && state.bookId===id){ toast('You were removed from '+(state.bookName||'that book')); state.wasMember = false; leaveBook(id); return; }
+    if(inIt) state.wasMember = true;
+    applyRole();
+    resolveNames(); softRender(); }, ()=>{}));
+  unsubs.push(db.collection(base+'invites').onSnapshot(s => { state.invites = s.docs.map(d => ({ hash: d.id, ...d.data() })); softRender(); }, ()=>{}));
+}
+async function createBook(name){
+  const id = newCode(); name = (name||'').trim().slice(0,60) || 'Our family recipes';
+  const dirId = newCode();
+  await state.db.doc('books/'+id+'/meta/info').set({ name, createdBy: state.me, createdAt: Date.now(), dirId, listed: true });
+  try{ await state.db.doc('directory/'+dirId).set({ name, nameLower: name.toLowerCase(), by: state.me, at: Date.now() }); }catch{}
+  await state.db.doc('books/'+id+'/members/'+state.me).set({ joinedAt: Date.now(), email: state.myEmail, role: 'owner' });
+  await saveProfile([...state.books.filter(b=>b.id!==id), { id, name }], id);
+  return id;
+}
+async function joinBook(code, token){
+  const id = cleanCode(code); if(id.length < 8) throw { code:'bad_code' };
+  const meta = await state.db.doc('books/'+id+'/meta/info').get();
+  if(!meta.exists) throw { code:'bad_code' };
+  /* a personal invite link carries a token tied to one invited person and their role */
+  const tok = token ? await state.db.doc('books/'+id+'/tokens/'+cleanCode(token)).get() : null;
+  const viaTok = tok && tok.exists ? tok.data() : null;
+  const inv = !viaTok && state.myHash ? await state.db.doc('books/'+id+'/invites/'+state.myHash).get() : null;
+  if(meta.data().emailOnly && !viaTok && !(inv && inv.exists)) throw { code:'invite_only' };
+  const role = (viaTok && viaTok.role) || (inv && inv.exists && inv.data().role) || meta.data().codeRole || 'contributor';
+  await state.db.doc('books/'+id+'/members/'+state.me).set({ joinedAt: Date.now(), email: state.myEmail || (viaTok && viaTok.email) || '', invite: (viaTok && viaTok.hash) || '', role });
+  const name = meta.data().name || 'Recipe book';
+  await saveProfile([...state.books.filter(b=>b.id!==id), { id, name }], id);
+  return { id, name };
+}
+async function sha256(t){ const b = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(t)); return [...new Uint8Array(b)].map(x => x.toString(16).padStart(2,'0')).join(''); }
+const validEmail = e => /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(e);
+/* Roles in a book: owner (made it), admin (manages people), contributor (adds and edits), viewer (reads) */
+const ROLES = { owner:'Owner', admin:'Admin', contributor:'Contributor', viewer:'Viewer' };
+const ROLE_HELP = { admin:'Adds and removes people, changes roles, plus everything a Contributor does', contributor:'Adds and edits recipes, meal plan, grocery list and inbox', viewer:'Sees everything, changes nothing' };
+const roleOfMember = id => id && id===state.bookMeta.createdBy ? 'owner' : ((state.memberInfo[id] && ROLES[state.memberInfo[id].role] && state.memberInfo[id].role) || 'contributor');
+function applyRole(){ state.myRole = roleOfMember(state.me); state.canWrite = state.appWrite && state.myRole!=='viewer'; }
+const canManage = () => state.myRole==='owner' || state.myRole==='admin' || (!state.bookMeta.createdBy && state.isOwner);
+/* People added by email find their books waiting when they open the app */
+async function checkInvites(){
+  try{
+    const snap = await state.db.collection('inv/'+state.myHash+'/books').get();
+    const fresh = snap.docs.filter(d => !state.books.some(b => b.id===d.id));
+    if(!fresh.length) return;
+    const added = [];
+    for(const d of fresh){ try{ await state.db.doc('books/'+d.id+'/members/'+state.me).set({ joinedAt: Date.now(), email: state.myEmail, role: d.data().role || 'contributor' }); added.push({ id: d.id, name: d.data().name || 'Recipe book' }); }catch{} }
+    if(!added.length) return;
+    const books = [...state.books, ...added];
+    await saveProfile(books, state.bookId || added[0].id);
+    toast(added.length===1 ? 'You’ve been added to '+added[0].name : 'You’ve been added to '+added.length+' recipe books');
+  }catch{}
+}
+async function inviteEmail(text, role, presetToken){
+  text = String(text||'').trim(); if(!text) throw { code:'empty' };
+  const isEmail = validEmail(text); const email = isEmail ? text.toLowerCase() : '';
+  const label = isEmail ? '' : text.slice(0, 60);
+  role = ROLES[role] && role!=='owner' ? role : 'contributor';
+  const h = await sha256(isEmail ? email : 'name:' + label.toLowerCase());
+  const prev = state.invites.find(i => i.hash===h);
+  const token = presetToken || (prev && prev.token) || newCode();
+  if(prev && prev.token && prev.token!==token){ try{ await bdoc('tokens/'+prev.token).delete(); }catch{} }
+  await bdoc('invites/'+h).set({ email, label, role, token, invitedBy: state.me, at: Date.now() });
+  await bdoc('tokens/'+token).set({ hash: h, email, label, role, at: Date.now() });
+  if(isEmail){ await state.db.doc('inv/'+h+'/books/'+state.bookId).set({ name: state.bookName || 'Recipe book', role, at: Date.now() });
+    for(const [mid, info] of Object.entries(state.memberInfo)){ if(info && info.email===email && mid!==state.bookMeta.createdBy){ try{ await bdoc('members/'+mid).update({ role }); }catch{} } } }
+  return { hash: h, token, email, label };
+}
+async function setRole(entry, role){
+  if(!ROLES[role] || role==='owner') return;
+  if(entry.mid){ await bdoc('members/'+entry.mid).update({ role }); }
+  if(entry.email){ const h = entry.hash || await sha256(entry.email);
+    const iv = state.invites.find(i => i.hash===h);
+    if(iv){ await bdoc('invites/'+h).update({ role }); try{ await state.db.doc('inv/'+h+'/books/'+state.bookId).update({ role }); }catch{} if(iv.token){ try{ await bdoc('tokens/'+iv.token).update({ role }); }catch{} } } }
+}
+async function removePerson(entry){
+  if(entry.email){ const h = entry.hash || await sha256(entry.email);
+    const iv = state.invites.find(i => i.hash===h); if(iv && iv.token){ try{ await bdoc('tokens/'+iv.token).delete(); }catch{} }
+    try{ await bdoc('invites/'+h).delete(); }catch{}
+    try{ await state.db.doc('inv/'+h+'/books/'+state.bookId).delete(); }catch{} }
+  for(const [mid, info] of Object.entries(state.memberInfo)){ if(mid!==state.bookMeta.createdBy && (mid===entry.mid || (entry.email && info && info.email===entry.email) || (entry.hash && info && info.invite===entry.hash))){ try{ await bdoc('members/'+mid).delete(); }catch{} try{ await state.db.doc('invu/'+mid+'/books/'+state.bookId).delete(); }catch{} } }
+}
+/* Finding books by name: a public list of names only. It never contains a book's private code,
+   so finding a book lets you ask to join, and an Owner or Admin approves. */
+async function setListed(on){
+  let dirId = state.bookMeta.dirId;
+  if(on){ if(!dirId){ dirId = newCode(); await bdoc('meta/info').update({ dirId }); state.bookMeta.dirId = dirId; }
+    await state.db.doc('directory/'+dirId).set({ name: state.bookName, nameLower: (state.bookName||'').toLowerCase(), by: state.bookMeta.createdBy || state.me, at: Date.now() });
+    await bdoc('meta/info').update({ listed: true }); }
+  else { if(dirId){ try{ await state.db.doc('directory/'+dirId).delete(); }catch{} } await bdoc('meta/info').update({ listed: false }); }
+}
+async function searchBooks(q){
+  q = (q||'').trim(); const out = [];
+  const code = cleanCode(q);
+  if(code.length >= 10 && !/\s/.test(q.replace(/^.*#join-/,''))){
+    try{ const m = await state.db.doc('books/'+code+'/meta/info').get();
+      if(m.exists) out.push({ kind:'code', id: code, name: m.data().name || 'Recipe book', emailOnly: !!m.data().emailOnly, dirId: m.data().dirId || '' }); }catch{} }
+  if(q.length >= 2){
+    const snap = await state.db.collection('directory').limit(1000).get(); const ql = q.toLowerCase();
+    snap.docs.forEach(d => { const v = d.data(); if((v.nameLower||'').includes(ql) && !out.some(o => o.dirId===d.id)) out.push({ kind:'dir', dirId: d.id, name: v.name || 'Recipe book', by: v.by || '' }); });
+  }
+  return out.slice(0, 30);
+}
+const requested = () => store.get('recipebox:req:'+state.me, []);
+async function askToJoin(dirId){
+  await state.db.doc('dirreq/'+dirId+'/requests/'+state.me).set({ uid: state.me, email: state.myEmail || '', at: Date.now() });
+  store.set('recipebox:req:'+state.me, [...new Set([...requested(), dirId])]);
+}
+async function approveRequest(uid, role){
+  role = ROLES[role] && role!=='owner' ? role : 'contributor';
+  const req = state.requests.find(r => r.uid===uid) || {};
+  await bdoc('members/'+uid).set({ joinedAt: Date.now(), role, email: req.email || '' });
+  await state.db.doc('invu/'+uid+'/books/'+state.bookId).set({ name: state.bookName || 'Recipe book', role, at: Date.now() });
+  try{ await state.db.doc('dirreq/'+state.bookMeta.dirId+'/requests/'+uid).delete(); }catch{}
+}
+async function declineRequest(uid){ try{ await state.db.doc('dirreq/'+state.bookMeta.dirId+'/requests/'+uid).delete(); }catch{} }
+/* Approvals arrive live: the approved person's app adds the book on its own */
+function watchApprovals(){
+  const handle = async snap => {
+    if(!state.profileReady){ setTimeout(() => handle(snap), 800); return; }
+    const fresh = snap.docs.filter(d => !state.books.some(b => b.id===d.id));
+    if(!fresh.length) return;
+    const added = fresh.map(d => ({ id: d.id, name: d.data().name || 'Recipe book' }));
+    await saveProfile([...state.books, ...added], state.bookId || added[0].id).catch(()=>{});
+    toast('You’re in: '+added.map(a=>a.name).join(', '));
+  };
+  state.db.collection('invu/'+state.me+'/books').onSnapshot(handle, ()=>{});
+}
+async function switchBook(id){ if(id!==state.bookId) openBook(id); await saveProfile(state.books, id); }
+async function leaveBook(id){
+  try{ await state.db.doc('books/'+id+'/members/'+state.me).delete(); }catch{}
+  try{ await state.db.doc('invu/'+state.me+'/books/'+id).delete(); }catch{}
+  const rest = state.books.filter(b=>b.id!==id);
+  await saveProfile(rest, rest[0] ? rest[0].id : '');
+}
+const inviteLink = () => APP_URL + '#join-' + state.bookId;
+const personalLink = token => APP_URL + '#join-' + state.bookId + '-' + token;
+const inviteMessage = (token, role) => `You’re invited to our recipe book “${state.bookName || 'Recipe book'}” as ${role==='admin'?'an':'a'} ${ROLES[role]||'Contributor'}. Open this link and sign in to Claude:\n${personalLink(token)}`;
+function copyText(btn, text, label){
+  const ok = () => { const t = btn.textContent; btn.textContent = 'Copied ✓'; setTimeout(()=>{ btn.textContent = label || t; }, 1800); };
+  try{ navigator.clipboard.writeText(text).then(ok, () => toast('Copy didn’t work here. Select the text and copy it.')); }catch{ toast('Copy didn’t work here. Select the text and copy it.'); }
+}
+
+let tokenJoining = '';
+function renderTokenJoin(code, token){
+  view.innerHTML = '<div class="startwrap"><div class="starthead"><h2>Joining the recipe book…</h2><p id="tjMsg">One moment.</p></div></div>';
+  if(tokenJoining===code+token) return; tokenJoining = code+token;
+  joinBook(code, token).then(j => { toast('You’re in: '+j.name); location.hash = ''; })
+    .catch(err => { tokenJoining = ''; const m = $('#tjMsg'); if(m) m.innerHTML = (err.code==='invite_only' ? 'This invite link has been turned off. Ask the person who invited you for a new one.' : err.code==='bad_code' ? 'This invite link doesn’t work. Check you copied all of it.' : 'Couldn’t join ('+esc(err.code||'error')+'). Tap Refresh to try again.') + ' <a href="#start">Find a book another way</a>'; }); }
+function renderStart(joinCode){
+  const has = state.books.length;
+  view.innerHTML = `<div class="startwrap">
+    <div class="starthead"><h2>${joinCode ? 'You’ve been invited to a recipe book' : has ? 'Recipe books' : 'Welcome to Family Recipe Box'}</h2>
+      <p>${joinCode ? 'Join it to see and add to that family’s recipes, meal plan and grocery list.' : 'Each family keeps its own recipe book. Start one for your family, or find one by name or invite code.'}</p></div>
+    <div class="choose">
+      <form class="box" id="joinForm" novalidate><h3>Find a recipe book</h3>
+        <div class="field"><label for="joinCode">Search by name, or paste an invite code</label><input id="joinCode" type="search" autocomplete="off" placeholder="e.g. Smith Family Kitchen" value="${esc(joinCode||'')}"></div>
+        <div><button class="btn primary" type="submit" id="joinGo">Search</button> <span id="joinMsg"></span></div>
+        <ul class="results" id="results"></ul></form>
+      <form class="box" id="newForm" novalidate><h3>Start a new recipe book</h3>
+        <div class="field"><label for="newName">Name it</label><input id="newName" autocomplete="off" placeholder="e.g. The Coutras Kitchen" maxlength="60"></div>
+        <div><button class="btn ${joinCode?'':'primary'}" type="submit" id="newGo">Create</button> <span id="newMsg"></span></div></form>
+    </div>
+    ${has ? `<p class="status"><a href="#books">← Back to your books</a></p>` : ''}
+  </div>`;
+  const mine = new Set(state.books.map(b => b.id));
+  const doSearch = async () => { const q = $('#joinCode').value; const msg = $('#joinMsg'), ul = $('#results');
+    if(q.trim().length < 2){ msg.innerHTML = '<span class="msg err">Type at least 2 letters, or paste a code.</span>'; return; }
+    $('#joinGo').disabled = true; msg.innerHTML = '<span class="msg"><span class="spin"></span> Searching…</span>';
+    try{
+      const res = await searchBooks(q); const req = new Set(requested());
+      msg.innerHTML = res.length ? '' : '<span class="msg">No recipe books match. Check the spelling, or ask the owner for their invite code. Some books are hidden from search.</span>';
+      ul.innerHTML = res.map((r,i) => { const isMine = r.kind==='code' && mine.has(r.id);
+        const action = isMine ? '<span class="pill ok">Already yours</span>'
+          : r.kind==='code' && !r.emailOnly ? `<button class="btn primary small" type="button" data-res="${i}" data-act="join">Join</button>`
+          : (r.dirId && req.has(r.dirId)) ? '<span class="pill">Request sent</span>'
+          : r.dirId ? `<button class="btn small" type="button" data-res="${i}" data-act="ask">Ask to join</button>`
+          : '<span class="pill">Invite only</span>';
+        return `<li><span class="who"><b>${esc(r.name)}</b>${r.kind==='code' ? ' <span class="pill">code match</span>' : ''}</span>${action}</li>`; }).join('');
+      ul.querySelectorAll('[data-res]').forEach(b => b.onclick = async () => { const r = res[+b.dataset.res]; b.disabled = true;
+        try{ if(b.dataset.act==='join'){ const j = await joinBook(r.id); toast('Joined '+j.name); location.hash = ''; }
+          else { await askToJoin(r.dirId); b.outerHTML = '<span class="pill">Request sent</span>'; toast('Request sent. You’ll be added when an Owner or Admin approves.'); } }
+        catch(err){ b.disabled = false; toast(err.code==='invite_only' ? 'That book only lets in invited emails.' : 'Couldn’t do that ('+(err.code||'error')+')'); } });
+    }catch(err){ msg.innerHTML = '<span class="msg err">Search didn’t work ('+esc(err.code||'error')+'). Try again.</span>'; }
+    finally{ $('#joinGo').disabled = false; } };
+  $('#joinForm').onsubmit = e => { e.preventDefault(); doSearch(); };
+  if(joinCode) setTimeout(doSearch, 0);
+  $('#newForm').onsubmit = async e => { e.preventDefault(); const b = $('#newGo'); b.disabled = true;
+    try{ await createBook($('#newName').value); toast('Recipe book created'); location.hash = ''; }
+    catch(err){ b.disabled = false; $('#newMsg').innerHTML = '<span class="msg err">Couldn’t create it ('+esc(err.code||'error')+').</span>'; } };
+}
+let leaveAsk = false, renaming = false;
+function renderBooks(){
+  if(!state.bookId) return renderStart();
+  const others = state.books.filter(b => b.id !== state.bookId);
+  const owner = !!state.isOwner;
+  const manage = canManage();
+  /* one row per person: members first, then emails that haven't opened the app yet */
+  const people = [];
+  for(const m of state.members){ const info = state.memberInfo[m] || {}; const inv = state.invites.find(i => (info.email && i.email===info.email) || (info.invite && i.hash===info.invite)) || null;
+    people.push({ key:'m-'+m, mid:m, email: info.email || '', hash: inv && inv.hash, name: m===state.me ? 'You' : (state.names[m] || (inv && inv.label) || ''), role: roleOfMember(m), joined:true, via: (m===state.me || m===state.bookMeta.createdBy) ? '' : (inv ? 'invite' : 'code') }); if(inv && !people[people.length-1].email) people[people.length-1].email = inv.email; }
+  for(const i of state.invites){ if(!people.some(x => x.hash===i.hash || (i.email && x.email===i.email))) people.push({ key:'i-'+i.hash, hash:i.hash, email:i.email, token:i.token, name:i.label||'', role: ROLES[i.role] ? i.role : 'contributor', joined:false }); }
+  const order = { owner:0, admin:1, contributor:2, viewer:3 };
+  people.sort((a,b) => (a.mid===state.me?-1:b.mid===state.me?1:0) || order[a.role]-order[b.role]);
+  const canEditRow = x => manage && x.role!=='owner' && x.mid!==state.me && !(state.myRole==='admin' && x.role==='admin' && false);
+  const roleSel = (x) => `<select class="rolesel" data-role="${esc(x.key)}" aria-label="Role for ${esc(x.email||x.name||'this person')}">${['admin','contributor','viewer'].map(r => `<option value="${r}"${x.role===r?' selected':''}>${ROLES[r]}</option>`).join('')}</select>`;
+  view.innerHTML = `<div class="startwrap">
+    <section class="box">
+      <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+        ${renaming ? `<input class="inp" id="renameIn" value="${esc(state.bookName)}" maxlength="60" style="flex:1 1 220px" aria-label="Book name"><button class="btn primary small" type="button" id="renameSave">Save</button><button class="btn ghost small" type="button" id="renameX">Cancel</button>`
+          : `<h2 style="font-size:1.6rem;margin-right:auto">${esc(state.bookName || 'Recipe book')}</h2>${manage ? '<button class="btn ghost small" type="button" id="renameBtn">Rename</button>' : ''}`}
+      </div>
+      <p class="status" style="margin:0">${state.recipes.length} recipe${state.recipes.length===1?'':'s'} · ${state.members.length} member${state.members.length===1?'':'s'} · ${state.bookMeta.emailOnly ? 'only the email addresses below can join' : 'people below, plus anyone you give the invite code to'}</p>
+    </section>
+    <section class="box">
+      <h3>Who can use this book</h3>
+      ${manage ? `<p class="hint">Type the person’s name, pick what they can do, and tap <b>Add</b>. Their personal invite link is copied for you to paste into a text or email. The app doesn’t send anything itself.</p>
+      <form class="addbar invite" id="emailForm" style="margin:0" novalidate><input id="emailIn" type="text" autocomplete="off" placeholder="Their name, e.g. Mom or Lochana" aria-label="Name of the person to invite" maxlength="60">
+        <select id="roleIn" aria-label="Role for the new person">${['admin','contributor','viewer'].map(r => `<option value="${r}"${r==='contributor'?' selected':''}>${ROLES[r]}</option>`).join('')}</select><button class="btn primary" type="submit">Add</button></form><span id="emailMsg"></span>
+      <dl class="roles">${['admin','contributor','viewer'].map(r => `<div><dt>${ROLES[r]}</dt><dd>${ROLE_HELP[r]}</dd></div>`).join('')}</dl>`
+        : `<p class="hint">You’re a${state.myRole==='admin'?'n':''} <b>${ROLES[state.myRole]}</b> here. ${state.myRole==='viewer' ? 'You can see everything but not change it.' : 'You can add and edit recipes.'} Owners and Admins add people.</p>`}
+      <ul class="people">
+        ${people.map(x => `<li><span class="who">${x.name ? `<b>${esc(x.name)}</b>` : ''}${x.name && x.email ? ' · ' : ''}${x.email ? esc(x.email) : (x.name ? '' : 'Family member')}</span>
+          ${!x.joined ? `<span class="pill">Not joined yet</span>${manage ? `<button class="btn small" type="button" data-sendinv="${esc(x.key)}">Copy invite</button>` : ''}` : x.via==='code' ? '<span class="pill">Joined with code</span>' : x.via==='invite' ? '<span class="pill ok">Joined</span>' : ''}
+          ${canEditRow(x) ? roleSel(x) : `<span class="pill ${x.role==='owner'?'ok':''}">${ROLES[x.role]}</span>`}
+          ${canEditRow(x) ? `<button class="x" type="button" data-rm="${esc(x.key)}" aria-label="Remove ${esc(x.email||x.name||'this person')}">×</button>` : ''}</li>`).join('')}
+      </ul>
+      ${manage && state.requests.length ? `<div class="reqs"><h4>Asking to join · ${state.requests.length}</h4><ul class="people">${state.requests.map(r => `<li><span class="who"><b>${esc(state.names[r.uid] || 'Someone')}</b>${r.email ? ' · '+esc(r.email) : ''}</span>
+          <select class="rolesel" data-reqrole="${esc(r.uid)}" aria-label="Role if approved">${['admin','contributor','viewer'].map(x => `<option value="${x}"${x==='contributor'?' selected':''}>${ROLES[x]}</option>`).join('')}</select>
+          <button class="btn primary small" type="button" data-approve="${esc(r.uid)}">Approve</button><button class="btn ghost small" type="button" data-decline="${esc(r.uid)}">Decline</button></li>`).join('')}</ul></div>` : ''}
+      ${manage ? `<label class="toggle"><input type="checkbox" id="listed" ${state.bookMeta.listed?'checked':''}> Others can find this book by name and ask to join</label>` : ''}
+      ${manage ? `<label class="toggle"><input type="checkbox" id="emailOnly" ${state.bookMeta.emailOnly?'checked':''}> Only people on this list can join (turns off the shared invite code)</label>` : ''}
+      <div id="sendBox"></div>
+      ${state.bookMeta.emailOnly ? '' : `<details class="codebox"><summary>Or share an invite code</summary>
+        <p class="hint" style="margin:8px 0">Anyone with the app and this code can join as a Contributor. You can change their role once they’re in.</p>
+        <div class="codeRow"><code id="codeTxt">${esc(state.bookId)}</code><button class="btn small" type="button" id="copyCode">Copy code</button></div>
+        <div class="codeRow" style="margin-top:8px"><span class="linkTxt" id="linkTxt">${esc(inviteLink())}</span><button class="btn small" type="button" id="copyLink">Copy invite link</button></div></details>`}
+      ${owner ? `<p class="note"><b>First time someone uses the app:</b> also add their email in this page’s <b>Share</b> menu as an <b>Editor</b>, with the public link off. That lets them open the app; the list above decides which book they see.</p>` : ''}
+    </section>
+    <section class="box">
+      <h3>Your other books</h3>
+      ${others.length ? `<ul class="booklist">${others.map(b => `<li><span>${esc(b.name)}</span><button class="btn small" type="button" data-sw="${esc(b.id)}">Open</button></li>`).join('')}</ul>` : '<p class="status" style="margin:0">None yet.</p>'}
+      <div class="actions" style="margin-top:0"><a class="btn" href="#start">Start or join another book</a></div>
+    </section>
+    <div>${state.myRole==='owner' ? '<p class="status" style="margin:0">You own this book, so you can’t leave it. Make someone else an Admin if they should manage it too.</p>' : leaveAsk ? `<span class="confirm">Leave “${esc(state.bookName)}”? You can rejoin with the code. <button class="btn danger solid small" type="button" id="leaveYes">Leave</button><button class="btn small" type="button" id="leaveNo">Cancel</button></span>` : `<button class="btn ghost danger small" type="button" id="leaveBtn">Leave this book</button>`}</div>
+  </div>`;
+  if($('#copyCode')) $('#copyCode').onclick = () => copyText($('#copyCode'), state.bookId, 'Copy code');
+  if($('#copyLink')) $('#copyLink').onclick = () => copyText($('#copyLink'), inviteLink(), 'Copy invite link');
+  const ef = $('#emailForm'); if(ef) ef.onsubmit = async e => { e.preventDefault(); const inp = $('#emailIn'); const v = inp.value.trim();
+    if(!v){ $('#emailMsg').innerHTML = '<span class="msg err">Type their name first.</span>'; inp.focus(); return; }
+    if(state.myEmail && v.toLowerCase()===state.myEmail){ $('#emailMsg').innerHTML = '<span class="msg">That’s you. You’re already in.</span>'; return; }
+    const role = $('#roleIn').value; const token = newCode();
+    const msg = inviteMessage(token, role);
+    /* copy straight away, while the tap still counts, then save */
+    let copied = false; try{ await navigator.clipboard.writeText(msg); copied = true; }catch{}
+    try{ await inviteEmail(v, role, token); inp.value = ''; $('#emailMsg').innerHTML = '';
+      showSend(v, token, role, copied); toast(copied ? 'Invite link copied. Paste it into a text or email to '+v+'.' : 'Added '+v+'. Copy the invite below.'); }
+    catch(err){ $('#emailMsg').innerHTML = '<span class="msg err">Couldn’t add them ('+esc(err.code||'error')+').</span>'; } };
+  const byKey = k => people.find(x => x.key===k);
+  function showSend(email, token, role, copied){
+    const box = document.getElementById('sendBox'); if(!box) return;
+    const msg = inviteMessage(token, role);
+    box.innerHTML = `<div class="sendbox"><b>${copied ? 'Copied. Now paste it to '+esc(email)+'.' : 'Now send '+esc(email)+' their invite.'}</b> Text or email them this message. The link adds them to this book as ${esc(ROLES[role])}. It works for one person, so make a new one for each.
+      <pre class="invmsg" id="invMsg">${esc(msg)}</pre><div class="actions" style="margin-top:0"><button class="btn primary small" type="button" id="copyInv">Copy invite</button><button class="btn ghost small" type="button" id="closeInv">Done</button></div></div>`;
+    $('#copyInv').onclick = () => copyText($('#copyInv'), msg, 'Copy invite');
+    $('#closeInv').onclick = () => { box.innerHTML = ''; };
+    box.scrollIntoView({ block:'nearest' }); }
+  view.querySelectorAll('[data-sendinv]').forEach(b => b.onclick = async () => { const x = byKey(b.dataset.sendinv); if(!x) return;
+    let token = x.token; if(!token){ b.disabled = true; try{ await inviteEmail(x.email, x.role); const w = Date.now(); while(!(state.invites.find(i=>i.hash===x.hash)||{}).token && Date.now()-w < 4000) await sleep(100); token = (state.invites.find(i=>i.hash===x.hash)||{}).token; }catch{} }
+    if(token) showSend(x.email, token, x.role); else toast('Couldn’t make the invite. Try again.'); });
+  view.querySelectorAll('[data-rm]').forEach(b => b.onclick = async () => { const x = byKey(b.dataset.rm); if(!x) return; b.disabled = true; await removePerson(x); toast('Removed '+(x.email||x.name||'them')); });
+  view.querySelectorAll('[data-role]').forEach(sel => sel.onchange = async () => { const x = byKey(sel.dataset.role); if(!x) return;
+    try{ await setRole(x, sel.value); toast((x.email||x.name||'They')+' is now '+(sel.value==='admin'?'an ':'a ')+ROLES[sel.value]); sel.blur(); }catch(e){ toast('Couldn’t change the role ('+(e.code||'error')+')'); } });
+  view.querySelectorAll('[data-approve]').forEach(b => b.onclick = async () => { const uid = b.dataset.approve; const role = (view.querySelector('[data-reqrole="'+uid+'"]')||{}).value || 'contributor'; b.disabled = true;
+    try{ await approveRequest(uid, role); toast('Approved as '+ROLES[role]); }catch(e){ b.disabled=false; toast('Couldn’t approve ('+(e.code||'error')+')'); } });
+  view.querySelectorAll('[data-decline]').forEach(b => b.onclick = async () => { b.disabled = true; await declineRequest(b.dataset.decline); toast('Request declined'); });
+  const ls = $('#listed'); if(ls) ls.onchange = async () => { ls.disabled = true; try{ await setListed(ls.checked); toast(ls.checked ? 'People can now find this book by name' : 'This book is hidden from search'); }catch(e){ ls.checked = !ls.checked; toast('Couldn’t change that ('+(e.code||'error')+')'); } ls.disabled = false; };
+  const eo = $('#emailOnly'); if(eo) eo.onchange = async () => { try{ await bdoc('meta/info').update({ emailOnly: eo.checked }); toast(eo.checked ? 'Only listed emails can join now' : 'Invite codes work again'); }catch{ eo.checked = !eo.checked; } };
+  view.querySelectorAll('[data-sw]').forEach(b => b.onclick = async () => { b.disabled = true; await switchBook(b.dataset.sw); location.hash = ''; });
+  if($('#renameBtn')) $('#renameBtn').onclick = () => { renaming = true; renderBooks(); $('#renameIn').focus(); };
+  if($('#renameX')) $('#renameX').onclick = () => { renaming = false; renderBooks(); };
+  if($('#renameSave')) $('#renameSave').onclick = async () => { const n = $('#renameIn').value.trim().slice(0,60); if(!n) return;
+    try{ await bdoc('meta/info').update({ name: n }); if(state.bookMeta.listed && state.bookMeta.dirId){ try{ await state.db.doc('directory/'+state.bookMeta.dirId).update({ name: n, nameLower: n.toLowerCase() }); }catch{} } await saveProfile(state.books.map(b => b.id===state.bookId ? { ...b, name: n } : b), state.bookId); renaming = false; toast('Renamed'); }
+    catch(e){ toast('Couldn’t rename ('+(e.code||'error')+')'); } };
+  if($('#leaveBtn')) $('#leaveBtn').onclick = () => { leaveAsk = true; renderBooks(); };
+  if($('#leaveNo')) $('#leaveNo').onclick = () => { leaveAsk = false; renderBooks(); };
+  if($('#leaveYes')) $('#leaveYes').onclick = async () => { leaveAsk = false; await leaveBook(state.bookId); location.hash = ''; toast('You left the book'); };
+}
+
+async function resolveReqNames(){ if(!state.user || !state.requests.length) return; try{ const ps = await state.user.profiles(state.requests.map(r=>r.uid)); let ch=false; for(const r of state.requests){ const n = (ps[r.uid]&&ps[r.uid].name)||''; if(state.names[r.uid]!==n){ state.names[r.uid]=n; ch=true; } } if(ch) softRender(); }catch{} }
+async function resolveNames(){
+  if(!state.user) return;
+  const ids = [...new Set([...state.recipes.map(r=>r.addedBy), ...(state.members||[])].filter(Boolean))];
+  if(!ids.length) return;
+  try{ const ps = await state.user.profiles(ids); let changed=false;
+    for(const id of ids){ const n = (ps[id] && ps[id].name) || ''; if(state.names[id]!==n){ state.names[id]=n; changed=true; } }
+    if(changed) softRender();
+  }catch{}
+}
+const who = id => !id ? '' : (id===state.me ? 'you' : (state.names[id] || 'family'));
+
+/* ---------- routing ---------- */
+function route(){ const h = location.hash.slice(1);
+  if(h==='new') return {name:'edit'};
+  if(h==='plan') return {name:'plan'};
+  if(h==='grocery') return {name:'grocery'};
+  if(h==='inbox') return {name:'inbox'};
+  if(h==='books') return {name:'books'};
+  if(h==='start') return {name:'start'};
+  if(h.startsWith('join-')) return {name:'start', code:h.slice(5)};
+  if(h.startsWith('edit-')) return {name:'edit', id:h.slice(5)};
+  if(h.startsWith('cook-')) return {name:'cook', id:h.slice(5)};
+  if(h.startsWith('r-')) return {name:'detail', id:h.slice(2)};
+  return {name:'list'}; }
+window.addEventListener('hashchange', () => { window.scrollTo(0,0); render(); });
+$('#addBtn').onclick = () => { location.hash = 'new'; };
+/* Book switcher dropdown */
+function closeBookMenu(){ $('#bookMenu').hidden = true; $('#bookBtn').setAttribute('aria-expanded','false'); }
+function openBookMenu(){
+  const m = $('#bookMenu');
+  m.innerHTML = `<div class="bm-label">Your recipe books</div>`
+    + state.books.map(b => `<button type="button" role="menuitemradio" aria-checked="${b.id===state.bookId}" data-book-id="${esc(b.id)}"><span class="bm-check">${b.id===state.bookId?'✓':''}</span>${esc(b.id===state.bookId ? (state.bookName||b.name) : b.name)}</button>`).join('')
+    + `<hr><button type="button" role="menuitem" data-go="books"><span class="bm-check"></span>People & settings for this book</button>`
+    + `<button type="button" role="menuitem" data-go="start"><span class="bm-check">+</span>Start or join another book</button>`;
+  m.hidden = false; $('#bookBtn').setAttribute('aria-expanded','true');
+  m.querySelectorAll('[data-book-id]').forEach(b => b.onclick = async () => { closeBookMenu(); const id = b.dataset.bookId; if(id===state.bookId) return;
+    if(['detail','edit','cook'].includes(route().name)) location.hash = '';
+    try{ await switchBook(id); toast('Opened '+((state.books.find(x=>x.id===id)||{}).name||'book')); }catch{ toast('Couldn’t switch books'); } });
+  m.querySelectorAll('[data-go]').forEach(b => b.onclick = () => { closeBookMenu(); location.hash = b.dataset.go; });
+  const first = m.querySelector('[aria-checked="true"]') || m.querySelector('button'); if(first) first.focus();
+}
+$('#bookBtn').onclick = e => { e.stopPropagation(); if($('#bookMenu').hidden) openBookMenu(); else closeBookMenu(); };
+document.addEventListener('click', e => { if(!$('#bookWrap').contains(e.target)) closeBookMenu(); });
+document.addEventListener('keydown', e => { if(e.key==='Escape' && !$('#bookMenu').hidden){ closeBookMenu(); $('#bookBtn').focus(); }
+  if(!$('#bookMenu').hidden && (e.key==='ArrowDown' || e.key==='ArrowUp')){ e.preventDefault(); const items = [...$('#bookMenu').querySelectorAll('button')]; const i = items.indexOf(document.activeElement); const n = items[(i + (e.key==='ArrowDown'?1:-1) + items.length) % items.length]; if(n) n.focus(); } });
+$('#refreshBtn').onclick = async () => {
+  const b = $('#refreshBtn'); if(b.disabled) return; b.disabled = true; b.classList.add('spinning');
+  try{
+    if(state.db && state.me){
+      if(state.myHash) await checkInvites();
+      const keepDraft = draft; openBook(state.bookId); if(route().name==='edit') draft = keepDraft;
+      await new Promise(r => { const t0 = Date.now(); const w = () => (state.loaded || Date.now()-t0 > 8000) ? r() : setTimeout(w, 150); w(); });
+      render(); toast(state.slow ? 'Still waiting for the connection' : 'Up to date');
+    } else { toast('Sign in to claude.ai to load your recipe books'); }
+  } finally { b.disabled = false; b.classList.remove('spinning'); }
+};
+document.querySelectorAll('.homelink').forEach(a => a.addEventListener('click', () => { state.q = ''; state.tag = ''; state.book = ''; state.mine = false; state.facets = {}; state.weekOnly = false; $('#q').value = ''; if(!location.hash || location.hash==='#'){ window.scrollTo(0,0); render(); } }));
+$('#q').addEventListener('input', e => { state.q = e.target.value.toLowerCase(); const n = route().name; if(n==='plan') renderPlan(); else if(n!=='list') location.hash=''; else renderList(); });
+
+/* Re-render on live data without wiping what someone is typing */
+let pending = false;
+function typing(){ const a = document.activeElement; return a && view.contains(a) && (a.tagName==='TEXTAREA' || a.tagName==='SELECT' || (a.tagName==='INPUT' && !/checkbox|radio|button|file/.test(a.type))); }
+function softRender(){ const r = route().name; if(r==='edit' && draft){ header(); return; } if(typing()){ pending = true; header(); return; } render(); }
+view.addEventListener('focusout', () => setTimeout(() => { if(pending && !typing()){ pending=false; softRender(); } }, 50));
+
+function header(){
+  const r = route().name;
+  const bb = $('#bookBtn'); $('#bookWrap').hidden = !state.bookId || SINGLE_BOOK; bb.textContent = '▤ ' + (state.bookName || (state.books.find(b=>b.id===state.bookId)||{}).name || 'Recipe book') + ' ▾';
+  document.querySelector('.tabs').hidden = !state.bookId || r==='start';
+  const tab = r==='plan' ? 'plan' : r==='grocery' ? 'grocery' : r==='inbox' ? 'inbox' : (r==='books'||r==='start') ? '' : 'list';
+  document.querySelectorAll('.tab').forEach(t => { if(t.dataset.tab===tab) t.setAttribute('aria-current','page'); else t.removeAttribute('aria-current'); });
+  $('#searchWrap').hidden = !(tab==='list' || tab==='plan');
+  $('#addBtn').hidden = !state.canWrite || !(tab==='list' || tab==='plan') || r==='edit' || r==='books' || r==='start' || !state.bookId;
+  if(r==='books' || r==='start' || !state.bookId) $('#searchWrap').hidden = true;
+  $('#count').textContent = state.loaded && !state.error ? state.recipes.length + (state.recipes.length===1?' recipe':' recipes') : '';
+  const left = state.grocery.filter(g=>!g.checked).length; const b = $('#gbadge'); b.hidden = !left; b.textContent = left;
+  const ib = $('#ibadge'); ib.hidden = !state.inbox.length; ib.textContent = state.inbox.length;
+}
+function render(){
+  header();
+  const r = route();
+  if(r.name!=='cook') stopCook();
+  if(state.error) return gate();
+  if(!state.profileReady){ view.innerHTML = '<p class="status">'+(state.slow ? 'Your recipe books are taking a while to load. Check your connection.' : 'Opening your recipe books…')+'</p>'; return; }
+  if(SINGLE_BOOK && (r.name==='books' || r.name==='start')){ location.hash = ''; return; }
+  if(!state.bookId && state.inviteCheck==='pending'){ view.innerHTML = '<p class="status">Checking for recipe books you’ve been added to…</p>'; return; }
+  if(r.name==='start' || !state.bookId){
+    const parts = (r.code||'').split('-'); const bookCode = cleanCode(parts[0]||''), token = cleanCode(parts[1]||'');
+    if(bookCode && state.books.some(b => b.id===bookCode)){ if(state.bookId!==bookCode) switchBook(bookCode); location.hash=''; return; }
+    if(bookCode && token) return renderTokenJoin(bookCode, token);
+    return renderStart(bookCode); }
+  if(r.name==='books') return renderBooks();
+  if(r.name==='detail') return renderDetail(r.id);
+  if(r.name==='edit') return renderEditor(r.id);
+  if(r.name==='cook') return renderCook(r.id);
+  if(r.name==='plan') return renderPlan();
+  if(r.name==='grocery') return renderGrocery();
+  if(r.name==='inbox') return renderInbox();
+  draft = null;
+  renderList();
+}
+function gate(){
+  if(state.error){ view.innerHTML = '<div class="empty"><h2>Recipe box unavailable</h2><p>'+esc(state.error)+'</p></div>'; return true; }
+  if(!state.loaded){ view.innerHTML = '<p class="status">'+(state.slow ? 'The recipe box is taking a while to answer. Check your connection; everything will appear as soon as it does.' : 'Opening the recipe box…')+'</p>'; return true; }
+  return false;
+}
+const allBooks = () => [...new Set(state.recipes.flatMap(r => r.cookbooks||[]))].sort((a,b)=>a.localeCompare(b));
+
+/* ---------- list ---------- */
+function renderList(){
+  if(gate()) return;
+  const all = state.recipes;
+  if(!all.length){
+    view.innerHTML = `<div class="empty"><h2>Your recipe box is empty</h2>
+      <p>Every recipe anyone in this book saves shows up for everyone in it. Start with one you found on Instagram, TikTok, YouTube or any website.</p>
+      <div class="steps3">
+        <div><b>1. Grab the post</b>Paste the link and caption, add screenshots, or upload the video. Got a pile already? Use the Inbox tab to import lots at once.</div>
+        <div><b>2. Let Claude read it</b>It pulls out ingredients, steps, timings and nutrition.</div>
+        <div><b>3. Plan and shop</b>Add it to the meal plan and the grocery list builds itself.</div>
+      </div>
+      ${state.canWrite ? '<button class="btn primary" type="button" id="firstAdd">+ Add your first recipe</button>' : '<p>You’re a Viewer in this book, so you can read recipes but not add them. Ask the book’s Owner or an Admin to make you a Contributor.</p>'}</div>`;
+    const f = $('#firstAdd'); if(f) f.onclick = () => location.hash='new';
+    return;
+  }
+  const list = filterState(all);
+  view.innerHTML = filtersHTML(all) + (!list.length ? '<p class="status">No recipes match that. Try another word or clear the filter.</p>' : '<div class="grid">' + list.map(r => cardHTML(r, false)).join('') + '</div>');
+  bindFilters(renderList);
+}
+
+/* ---------- detail ---------- */
+let scale = 1, scaleFor = '', wakeLock = null, planOpen = false, catsOpen = false, catsTimer = null;
+function unitSeg(){ return `<span class="seg" role="group" aria-label="Units">${[['orig','As written'],['us','US'],['metric','Metric']].map(([k,l])=>`<button type="button" data-u="${k}" aria-pressed="${state.units===k}">${l}</button>`).join('')}</span>`; }
+function bindUnits(rerender){ view.querySelectorAll('[data-u]').forEach(b => b.onclick = () => { state.units = b.dataset.u; store.set('units', state.units); rerender(); }); }
+function servingsFor(r){ const base = Number(r.servings)||0; return base ? base*scale : 0; }
+function renderDetail(id){
+  const r = byId(id);
+  if(!r){ view.innerHTML = state.loaded ? '<div class="empty"><h2>Recipe not found</h2><p>It may have been deleted.</p><a class="btn" href="#">Back to all recipes</a></div>' : '<p class="status">Opening recipe…</p>'; return; }
+  if(scaleFor!==id){ scale=1; scaleFor=id; planOpen=false; catsOpen=false; }
+  const base = Number(r.servings)||0;
+  const servLabel = base ? fmt(base*scale)+' servings' : (scale===1?'1×':fmt(scale)+'×');
+  const url = safeUrl(normUrl(r.sourceUrl));
+  const n = r.nutrition || {};
+  const hasN = n.calories || n.protein || n.carbs || n.fat;
+  const days = Array.from({length:14}, (_,i) => addDays(new Date(), i));
+  view.innerHTML = `
+    <a class="btn ghost back" href="#">← All recipes</a>
+    ${r.inferred ? `<div class="inferbar">The post didn’t list everything, so Claude filled in the missing ingredients or steps from similar recipes for this dish. Treat amounts as a starting point and adjust to taste.</div>` : ''}
+    ${r.needsReview && state.canWrite ? `<div class="reviewbar" id="reviewbar"><span>Claude imported this one. Give it a quick look.</span><a class="btn small" href="#edit-${esc(r.id)}">Edit</a><button class="btn primary small" type="button" id="okBtn">Looks good</button></div>` : ''}
+    <section class="hero">
+      <div class="herophoto"><div class="thumb">${imgSrc(r)?`<img src="${esc(imgSrc(r))}" alt="${esc(r.title)}">`:coverHTML(r, true)}</div>
+      ${!imgSrc(r) && state.canWrite && state.assets ? `<div class="phototools"><a class="btn small" href="${esc(googleImg(r.title))}" target="_blank" rel="noopener">Find a photo on Google ↗</a><label class="btn small" for="addPhoto">Choose a file</label><input id="addPhoto" type="file" accept="image/*" hidden>${pasteBoxHTML('detailPaste')}</div>` : ''}</div>
+      <div>
+        <h2>${esc(r.title||'Untitled recipe')}</h2>
+        <div class="meta">${r.platform?`<span class="src">${esc(r.platform)}</span>`:''}${r.author?`<span>by ${esc(r.author)}</span>`:''}${r.addedBy?`<span>· added by ${esc(who(r.addedBy))}</span>`:''}</div>
+        ${url ? `<div class="sourcelink"><span class="lbl">Original post</span><a href="${esc(url)}" target="_blank" rel="noopener" id="srcA">${esc(url)}</a><button class="btn small" type="button" id="copySrc">Copy link</button></div>` : (r.sourceUrl ? `<div class="sourcelink"><span class="lbl">Source</span><span>${esc(r.sourceUrl)}</span></div>` : '')}
+        <div class="facts">
+          <div class="fact"><small>Prep</small><b>${mins(r.prepMinutes)}</b></div>
+          <div class="fact"><small>Cook</small><b>${mins(r.cookMinutes)}</b></div>
+          <div class="fact"><small>Serves</small><b>${base||'—'}</b></div>
+        </div>
+        <div class="nutri" id="nutri">${hasN ? `
+          <div class="fact"><small>Calories</small><b>${Math.round(n.calories||0)}</b></div>
+          <div class="fact"><small>Protein</small><b>${Math.round(n.protein||0)}g</b></div>
+          <div class="fact"><small>Carbs</small><b>${Math.round(n.carbs||0)}g</b></div>
+          <div class="fact"><small>Fat</small><b>${Math.round(n.fat||0)}g</b></div>
+          <span class="est">Per serving, estimated by Claude.${state.sample&&state.canWrite?' <button class="btn ghost small" type="button" id="estN">Re-estimate</button>':''}</span>`
+          : (state.sample && state.canWrite ? '<button class="btn small" type="button" id="estN">Estimate calories & macros</button>' : '')}</div>
+        <div class="cats"><span class="lbl">Categories</span>
+          ${catsOpen ? '<div id="detailCats" style="flex:1 1 100%"></div><button class="btn small" type="button" id="catsDone">Done</button>' :
+            `${canonList(r.tags).sort((a,b)=>{ const gi = l => { const g = groupOf(l); return g==='Other'?99:GROUP_ORDER.indexOf(g); }; return gi(a)-gi(b); }).map(t=>`<span class="lbl-chip" title="${esc(groupOf(t))}"><span class="lbl-g">${esc(groupOf(t)==='Other'?'':groupOf(t)==='Main ingredient'?'Main':groupOf(t))}</span>${esc(t)}</span>`).join('') || '<span class="status" style="margin:0">None yet</span>'}${state.canWrite ? `<button class="btn ghost small" type="button" id="catsEdit">${(r.tags||[]).length?'Edit':'+ Add categories'}</button>` : ''}`}</div>
+        ${(r.cookbooks||[]).length?`<div class="tags" style="margin-top:10px">${(r.cookbooks||[]).map(b=>`<span class="tag book">▤ ${esc(b)}</span>`).join('')}</div>`:''}
+        <div class="actions">
+          ${(r.steps||[]).length?`<a class="btn primary" href="#cook-${esc(r.id)}">Start cooking</a>`:''}
+          ${state.canWrite?`<button class="btn" type="button" id="planBtn">Add to meal plan</button>`:''}
+          ${url?`<a class="btn" href="${esc(url)}" target="_blank" rel="noopener">Original post ↗</a>`:''}
+          ${state.canWrite?`<a class="btn" href="#edit-${esc(r.id)}">Edit</a><span id="delwrap"><button class="btn danger" type="button" id="del">Delete</button></span>`:''}
+        </div>
+        ${planOpen ? `<div class="inline-panel" id="planPanel">
+          <select id="pDay" aria-label="Day">${days.map(d=>`<option value="${iso(d)}">${esc(dayName(d))}, ${esc(shortDate(d))}</option>`).join('')}</select>
+          <select id="pMeal" aria-label="Meal">${MEALS.map(m=>`<option${m==='Dinner'?' selected':''}>${m}</option>`).join('')}</select>
+          <label style="display:flex;gap:6px;align-items:center">Servings <input class="inp" id="pServ" type="number" min="1" style="width:70px" value="${esc(base ? fmt(base*scale).replace(/\s.*$/,'') : '')}" placeholder="—"></label>
+          <button class="btn primary small" type="button" id="pAdd">Add</button><button class="btn ghost small" type="button" id="pCancel">Cancel</button></div>` : ''}
+      </div>
+    </section>
+    <section class="cols">
+      <div class="panel"><h3>Ingredients
+        <span class="tools"><span class="scaler" aria-label="Scale recipe"><button type="button" id="sdown" aria-label="Smaller batch">−</button><span>${servLabel}</span><button type="button" id="sup" aria-label="Bigger batch">+</button></span>${unitSeg()}</span></h3>
+        ${(r.ingredients||[]).length ? `<ul class="ing">${r.ingredients.map((l,i)=>`<li><label><input type="checkbox" id="ing-${i}"><span>${lineHTML(l,scale,state.units)}</span></label></li>`).join('')}</ul>` : `<p class="status">No ingredients listed.</p>${state.sample && state.canWrite ? '<button class="btn primary small" type="button" id="fillMissing">Have Claude work out the ingredients and steps</button> <span id="fillmsg"></span>' : ''}`}
+      </div>
+      <div class="panel"><h3>Method</h3>
+        ${(r.steps||[]).length ? `<ol class="method">${r.steps.map(s=>`<li><span>${esc(convTemps(s,state.units))}</span></li>`).join('')}</ol>` : '<p class="status">No steps listed.</p>'}
+        ${r.notes?`<div class="notes"><b>Notes</b>${esc(r.notes)}</div>`:''}
+      </div>
+    </section>`;
+  const steps = [.25,.5,1,1.5,2,3,4];
+  const step = d => { if(base){ scale = Math.max(1, base*scale + d)/base; } else { const i = steps.indexOf(scale); scale = steps[Math.max(0,Math.min(steps.length-1,(i<0?2:i)+d))]; } renderDetail(id); };
+  $('#sdown').onclick = () => step(-1); $('#sup').onclick = () => step(1);
+  bindUnits(() => renderDetail(id));
+  const pb = $('#planBtn'); if(pb) pb.onclick = () => { planOpen = !planOpen; renderDetail(id); };
+  if($('#pCancel')) $('#pCancel').onclick = () => { planOpen=false; renderDetail(id); };
+  if($('#pAdd')) $('#pAdd').onclick = async () => {
+    const date = $('#pDay').value, meal = $('#pMeal').value, sv = Number($('#pServ').value)||null;
+    $('#pAdd').disabled = true;
+    try{ await addToPlan(r.id, date, meal, sv); planOpen=false; toast('Added to '+dayName(fromIso(date))+' '+meal.toLowerCase()); renderDetail(id); }
+    catch(e){ $('#pAdd').disabled=false; toast('Couldn’t add it ('+(e.code||'error')+')'); }
+  };
+  const fm = $('#fillMissing'); if(fm) fm.onclick = async () => {
+    fm.disabled = true; $('#fillmsg').innerHTML = '<span class="msg"><span class="spin"></span> Working it out…</span>';
+    try{ const pb = r.photoId ? await blobFromAsset(r.photoId) : null;
+      const out = await completeRecipe(r, pb ? [pb] : []);
+      if(!out || out.error){ fm.disabled=false; $('#fillmsg').innerHTML = '<span class="msg err">'+esc(out?.error||'Claude couldn’t tell what dish this is.')+' Edit the name to be more specific and try again.</span>'; return; }
+      const d = JSON.parse(JSON.stringify(r)); mergeSuggestion(d, out);
+      await bdoc('recipes/'+id).update({ title:d.title, servings:Number(d.servings)||null, prepMinutes:Number(d.prepMinutes)||null, cookMinutes:Number(d.cookMinutes)||null,
+        ingredients:d.ingredients, steps:d.steps, tags:d.tags||[], notes:d.notes||'', nutrition:d.nutrition||null, inferred:true, updatedAt:Date.now() });
+      toast('Filled in from similar recipes');
+    }catch(e){ fm.disabled=false; $('#fillmsg').innerHTML = '<span class="msg err">'+esc(claudeErr(e))+'</span>'; } };
+  const cs = $('#copySrc'); if(cs) cs.onclick = () => { const done = () => { cs.textContent = 'Copied ✓'; setTimeout(()=>{ cs.textContent='Copy link'; }, 1800); };
+    try{ navigator.clipboard.writeText(url).then(done, () => { const sel = getSelection(), rg = document.createRange(); rg.selectNodeContents($('#srcA')); sel.removeAllRanges(); sel.addRange(rg); cs.textContent = 'Selected, copy it'; }); }
+    catch{ const sel = getSelection(), rg = document.createRange(); rg.selectNodeContents($('#srcA')); sel.removeAllRanges(); sel.addRange(rg); } };
+  const setPhoto = async f => { toast('Uploading photo…');
+    try{ const a = await state.assets.upload(f); await bdoc('recipes/'+id).update({ photoId: a.id }); toast('Photo added'); }catch(err){ toast('Photo didn’t upload ('+(err.code||'error')+')'); } };
+  const ap = $('#addPhoto'); if(ap) ap.onchange = e => { const f = e.target.files[0]; if(f) setPhoto(f); };
+  bindPasteBox($('#detailPaste'), setPhoto);
+  const ce = $('#catsEdit'); if(ce) ce.onclick = () => { catsOpen = true; renderDetail(id); const i = $('#detailCats-in'); if(i) i.focus(); };
+  const cd = $('#catsDone'); if(cd) cd.onclick = () => { catsOpen = false; renderDetail(id); };
+  if($('#detailCats')) labelPicker($('#detailCats'), canonList(r.tags), list => { clearTimeout(catsTimer);
+    catsTimer = setTimeout(async () => { try{ await bdoc('recipes/'+id).update({ tags: list }); }catch(e){ toast('Couldn’t save categories ('+(e.code||'error')+')'); } }, 400); });
+  const ok = $('#okBtn'); if(ok) ok.onclick = async () => { ok.disabled = true; try{ await bdoc('recipes/'+id).update({ needsReview:false }); }catch{ ok.disabled=false; } };
+  const en = $('#estN'); if(en) en.onclick = () => estimateNutrition(r, en);
+  const del = $('#del');
+  if(del) del.onclick = () => {
+    $('#delwrap').innerHTML = '<span class="confirm">Delete for everyone? <button class="btn danger solid" type="button" id="delyes">Delete</button><button class="btn" type="button" id="delno">Cancel</button></span>';
+    $('#delno').onclick = () => renderDetail(id);
+    $('#delyes').onclick = async () => { $('#delyes').disabled = true;
+      try{ await bdoc('recipes/'+id).delete();
+        for(const p of state.plan.filter(p=>p.recipeId===id)){ try{ await bdoc('plan/'+p.id).delete(); }catch{} }
+        location.hash=''; toast('Recipe deleted'); }
+      catch(e){ $('#delwrap').innerHTML = '<span class="msg err">Couldn’t delete: '+esc(e.code||'error')+'</span>'; } };
+  };
+}
+function claudeErr(e){ const c = e && e.code;
+  return c==='not_granted' ? 'Claude wasn’t allowed to help here.' : c==='rate_limited' ? 'Claude is busy. Wait a minute and try again.' : 'Claude couldn’t do that ('+(c||'error')+'). Try again.'; }
+async function estimateNutrition(r, btn){
+  btn.disabled = true; const old = btn.innerHTML; btn.innerHTML = '<span class="spin"></span> Estimating…';
+  try{
+    const out = await state.sample.json(`Estimate nutrition PER SERVING for this recipe. Servings: ${r.servings || 'unknown (assume a typical serving count for the amounts)'}.
+Ingredients:\n${(r.ingredients||[]).join('\n')}
+Return ONLY JSON: {"calories": number, "protein": grams, "carbs": grams, "fat": grams, "servingsAssumed": number}`, { modelTier:'default' });
+    const nu = { calories:+out.calories||0, protein:+out.protein||0, carbs:+out.carbs||0, fat:+out.fat||0 };
+    await bdoc('recipes/'+r.id).update({ nutrition: nu, ...( !r.servings && out.servingsAssumed ? { servings: +out.servingsAssumed } : {}) });
+    toast('Nutrition estimated');
+  }catch(e){ btn.disabled=false; btn.innerHTML = old; toast(claudeErr(e)); }
+}
+async function addToPlan(recipeId, date, meal, servings){
+  const id = newId('p');
+  await bdoc('plan/'+id).set({ recipeId, date, meal, servings: servings||null, addedBy: state.me||'', createdAt: Date.now() });
+}
+
+/* ---------- cook mode ---------- */
+let cookStep = 0, cookFor = '', timers = [], tick = null, audioCtx = null;
+function stopCook(){ if(wakeLock){ try{ wakeLock.release(); }catch{} wakeLock=null; } }
+function findTimes(s){ const out=[]; const re=/(\d+(?:\.\d+)?)\s*(?:(?:-|–|to)\s*(\d+(?:\.\d+)?)\s*)?(hours?|hrs?|minutes?|mins?|seconds?|secs?)\b/gi; let m;
+  while((m=re.exec(s))){ const n = parseFloat(m[2]||m[1]); const u = m[3].toLowerCase(); const sec = u.startsWith('h') ? n*3600 : u.startsWith('s') ? n : n*60;
+    if(sec>0 && sec<=6*3600) out.push({label: m[0], sec}); } return out; }
+const clock = s => { s=Math.max(0,Math.ceil(s)); const h=Math.floor(s/3600), m=Math.floor(s%3600/60), x=s%60; return (h?h+':'+String(m).padStart(2,'0'):m)+':'+String(x).padStart(2,'0'); };
+function beep(){ try{ audioCtx = audioCtx || new (window.AudioContext||window.webkitAudioContext)(); [0,.35,.7].forEach(t => { const o=audioCtx.createOscillator(), g=audioCtx.createGain(); o.frequency.value=880; o.connect(g); g.connect(audioCtx.destination); g.gain.setValueAtTime(.2,audioCtx.currentTime+t); g.gain.exponentialRampToValueAtTime(.001,audioCtx.currentTime+t+.3); o.start(audioCtx.currentTime+t); o.stop(audioCtx.currentTime+t+.3); }); }catch{} }
+function drawTimers(){ const el = $('#timers'); if(!el) return;
+  el.innerHTML = timers.map((t,i)=>`<button class="btn small timer${t.done?' ring':''}" type="button" data-t="${i}">⏱ ${esc(t.label)} · ${t.done?'Done!':clock((t.end-Date.now())/1000)}</button>`).join('');
+  el.querySelectorAll('[data-t]').forEach(b => b.onclick = () => { timers.splice(+b.dataset.t,1); drawTimers(); }); }
+function startTick(){ if(tick) return; tick = setInterval(() => { let any=false; timers.forEach(t => { if(!t.done && Date.now()>=t.end){ t.done=true; beep(); } if(!t.done) any=true; }); drawTimers(); if(!timers.length){ clearInterval(tick); tick=null; } }, 500); }
+async function renderCook(id){
+  const r = byId(id);
+  if(!r){ view.innerHTML = state.loaded ? '<p class="status">Recipe not found. <a href="#">Back</a></p>' : '<p class="status">Opening recipe…</p>'; return; }
+  if(cookFor!==id){ cookFor=id; cookStep=0; if(scaleFor!==id){ scale=1; scaleFor=id; } }
+  const steps = r.steps||[]; const total = steps.length;
+  cookStep = Math.min(cookStep, Math.max(0,total-1));
+  const s = convTemps(steps[cookStep]||'', state.units);
+  const times = findTimes(steps[cookStep]||'');
+  view.innerHTML = `<section class="cook">
+    <div class="cook-top"><h2>${esc(r.title)}</h2><button class="btn small" type="button" id="wl">${wakeLock?'Screen stays on ✓':'Keep screen on'}</button><a class="btn small" href="#r-${esc(r.id)}">Exit</a></div>
+    <div class="progress" aria-hidden="true"><i style="width:${total?((cookStep+1)/total*100):0}%"></i></div>
+    <div class="stepno">Step ${cookStep+1} of ${total}</div>
+    <div class="steptext" aria-live="polite">${esc(s)}</div>
+    <div class="timers">${times.map((t,i)=>`<button class="btn small" type="button" data-start="${i}">Start ${esc(t.label)} timer</button>`).join('')}</div>
+    <div class="timers" id="timers"></div>
+    <div class="cook-nav"><button class="btn" type="button" id="prev" ${cookStep===0?'disabled':''}>← Back</button>
+      ${cookStep<total-1?'<button class="btn primary" type="button" id="next">Next step →</button>':`<a class="btn primary" href="#r-${esc(r.id)}">Done ✓</a>`}</div>
+    <details class="ingbox"><summary>Ingredients (${(r.ingredients||[]).length})</summary><ul class="ing" style="margin-top:8px">${(r.ingredients||[]).map((l,i)=>`<li><label><input type="checkbox" id="cing-${i}"><span>${lineHTML(l,scale,state.units)}</span></label></li>`).join('')}</ul></details>
+  </section>`;
+  drawTimers();
+  const go = d => { cookStep = Math.max(0, Math.min(total-1, cookStep+d)); renderCook(id); };
+  if($('#prev')) $('#prev').onclick = () => go(-1);
+  if($('#next')) $('#next').onclick = () => go(1);
+  view.querySelectorAll('[data-start]').forEach(b => b.onclick = () => { const t = times[+b.dataset.start]; timers.push({ label: t.label, end: Date.now()+t.sec*1000, done:false }); try{ audioCtx = audioCtx || new (window.AudioContext||window.webkitAudioContext)(); }catch{} startTick(); drawTimers(); });
+  $('#wl').onclick = async () => {
+    try{ if(wakeLock){ await wakeLock.release(); wakeLock=null; } else if(navigator.wakeLock){ wakeLock = await navigator.wakeLock.request('screen'); wakeLock.addEventListener('release',()=>{ wakeLock=null; }); } else throw 0; }
+    catch{ $('#wl').textContent = 'Not available here'; return; }
+    $('#wl').textContent = wakeLock ? 'Screen stays on ✓' : 'Keep screen on'; };
+}
+document.addEventListener('keydown', e => { if(route().name!=='cook' || typing()) return;
+  if(e.key==='ArrowRight' && $('#next')) $('#next').click(); if(e.key==='ArrowLeft' && $('#prev') && !$('#prev').disabled) $('#prev').click(); });
+
+/* ---------- meal plan ---------- */
+/* ---------- recipe grid (shared by Recipes and Meal plan) ---------- */
+const FACETS = ['Course','Region','Style'];
+const weekRange = () => { const d0 = iso(weekOf), d6 = iso(addDays(weekOf,6)); return [d0, d6]; };
+const thisWeekIds = () => { const [a,b] = weekRange(); return new Set(state.plan.filter(p => p.date>=a && p.date<=b).map(p => p.recipeId)); };
+const isFeatured = r => canonList(r.tags).some(t => t.toLowerCase()==='family favorite');
+const isNew = r => r.createdAt && Date.now() - r.createdAt < 7*864e5;
+function featuredCover(r){
+  return `<div class="cover feat" role="img" aria-label="${esc(r.title||'')}"><svg viewBox="0 0 120 120" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="3" stroke-linejoin="round" stroke-linecap="round">
+    <path d="M42 34a12 12 0 0 1 8-20 14 14 0 0 1 20 0 12 12 0 0 1 8 20v8H42z"/><path d="M42 42h36"/>
+    <path d="M26 62h68l-6 8H32z"/><path d="M28 74h64M28 82h64M28 90h64"/><path d="M26 98h68l-6 8H32z"/><path d="M30 62v36M90 62v36"/></svg><span>${esc(r.title||'')}</span></div>`; }
+function filterState(all){
+  state.facets = state.facets || {};
+  const q = state.q, week = state.weekOnly ? thisWeekIds() : null;
+  return all.filter(r => FACETS.every(g => !state.facets[g] || canonList(r.tags).includes(state.facets[g])) && (!state.tag || canonList(r.tags).includes(state.tag)) && (!state.book || (r.cookbooks||[]).includes(state.book)) && (!state.mine || r.addedBy===state.me) && (!week || week.has(r.id)) &&
+    (!q || [r.title, r.author, r.notes, ...(r.tags||[]), ...(r.cookbooks||[]), ...(r.ingredients||[])].join(' ').toLowerCase().includes(q)));
+}
+function filtersHTML(all){
+  state.facets = state.facets || {};
+  const tags = {}; all.forEach(r => canonList(r.tags).forEach(t => tags[t]=(tags[t]||0)+1));
+  const top = Object.entries(tags).sort((a,b)=>b[1]-a[1]).slice(0,16).map(x=>x[0]);
+  const books = allBooks(); const wk = thisWeekIds().size;
+  const chips = ['<button class="chip" data-k="all" aria-pressed="'+(!state.tag&&!state.mine&&!state.book&&!state.weekOnly)+'">All</button>',
+    state.me ? '<button class="chip" data-k="mine" aria-pressed="'+state.mine+'">Added by me</button>' : '',
+    '<button class="chip" data-k="week" aria-pressed="'+!!state.weekOnly+'">Meals for this week ('+wk+')</button>',
+    ...books.map(b=>'<button class="chip book" data-k="book" data-v="'+esc(b)+'" aria-pressed="'+(state.book===b)+'">▤ '+esc(b)+'</button>'),
+    ...top.map(t=>'<button class="chip" data-k="tag" data-v="'+esc(t)+'" aria-pressed="'+(state.tag===t)+'">'+esc(t)+'</button>')].join('');
+  const facetOpts = g => [...new Set(all.flatMap(r => canonList(r.tags)).filter(t => groupOf(t)===g))].sort((a,b)=>a.localeCompare(b));
+  const facetHTML = '<div class="facets">' + FACETS.map(g => { const opts = facetOpts(g); return `<label class="facet"><span>${g}</span><select data-facet="${g}" ${opts.length?'':'disabled'}><option value="">${opts.length ? 'Any '+g.toLowerCase() : 'None yet'}</option>${opts.map(o=>`<option${state.facets[g]===o?' selected':''}>${esc(o)}</option>`).join('')}</select></label>`; }).join('') + '</div>';
+  return facetHTML + '<div class="chips">'+chips+'</div>';
+}
+function cardHTML(r, planMode){
+  const t = (Number(r.prepMinutes)||0)+(Number(r.cookMinutes)||0);
+  const ts = canonList(r.tags); const pick = g => ts.find(x => groupOf(x)===g);
+  const kick = [pick('Region'), pick('Course') || pick('Main ingredient'), pick('Style')].filter(Boolean);
+  const feat = isFeatured(r);
+  const method = pick('Method');
+  const by = r.addedBy ? (isNew(r) ? '<b>NEW</b>, added by ' : 'Added by ') + esc(who(r.addedBy)) : (isNew(r) ? '<b>NEW</b>' : '');
+  return `<div class="card${feat?' featured':''}" data-id="${esc(r.id)}" ${planMode && state.canWrite ? 'draggable="true"' : ''} tabindex="0" role="button" aria-label="${esc(r.title||'Recipe')}">
+    <div class="thumb">${imgSrc(r) ? `<img src="${esc(imgSrc(r))}" alt="" loading="lazy" draggable="false" onerror="this.style.display='none'">` : feat ? featuredCover(r) : coverHTML(r)}</div>
+    <div class="cbody">${kick.length ? `<div class="kicker">${kick.map(esc).join(' · ')}</div>` : ''}<h3>${esc(r.title||'Untitled recipe')}</h3>
+      ${feat ? `<div class="ctags">${ts.filter(x => ['Region','Main ingredient','Course'].includes(groupOf(x)) || x.toLowerCase()==='family favorite').slice(0,3).map(x=>`<span>${esc(x)}</span>`).join('')}</div>` : ''}
+      <div class="meta">${feat && method ? `<span class="src">${esc(method)}</span>` : r.platform?`<span class="src">${esc(r.platform)}</span>`:''}${t?`<span>${mins(t)}</span>`:''}${r.nutrition&&r.nutrition.calories?`<span>~${Math.round(r.nutrition.calories)} kcal</span>`:''}${r.needsReview?'<span class="review">Check me</span>':''}</div>
+      ${r.inferred && !feat ? '<div class="meta"><span class="src strong">Filled in by Claude</span></div>' : ''}
+      ${by ? `<div class="by">${by}</div>` : ''}
+      ${planMode && state.canWrite ? `<button class="btn small planit" type="button" data-planit="${esc(r.id)}">+ Plan</button>` : ''}</div></div>`;
+}
+function bindFilters(rerender){
+  view.querySelectorAll('[data-facet]').forEach(sel => sel.onchange = () => { state.facets[sel.dataset.facet] = sel.value; sel.blur(); rerender(); });
+  view.querySelectorAll('.chip').forEach(b => b.onclick = () => {
+    const k = b.dataset.k, v = b.dataset.v;
+    if(k==='all'){ state.tag=''; state.book=''; state.mine=false; state.facets={}; state.weekOnly=false; }
+    else if(k==='mine') state.mine = !state.mine;
+    else if(k==='week') state.weekOnly = !state.weekOnly;
+    else if(k==='book') state.book = state.book===v ? '' : v;
+    else state.tag = state.tag===v ? '' : v;
+    rerender(); });
+  view.querySelectorAll('.card').forEach(c => { const open = () => location.hash = 'r-' + c.dataset.id;
+    c.onclick = e => { if(e.target.closest('[data-planit]')) return; open(); };
+    c.onkeydown = e => { if(e.key==='Enter' || e.key===' '){ e.preventDefault(); open(); } }; });
+}
+
+/* ---------- meal plan: grid + docked weekly planner ---------- */
+let weekOf = monday(new Date()), planPick = '', planTarget = '';
+function thumbHTML(r){ return r && imgSrc(r) ? `<img src="${esc(imgSrc(r))}" alt="" draggable="false">` : r ? (isFeatured(r) ? featuredCover(r) : coverHTML(r)) : '<span class="gone">?</span>'; }
+function renderPlan(){
+  if(gate()) return;
+  const all = state.recipes;
+  const list = filterState(all);
+  const days = Array.from({length:7}, (_,i)=>addDays(weekOf,i));
+  const [d0, d6] = weekRange(); const today = iso(new Date());
+  const inWeek = state.plan.filter(p => p.date >= d0 && p.date <= d6);
+  const isThis = d0===iso(monday(new Date()));
+  const pickR = planPick ? byId(planPick) : null;
+  view.innerHTML = `<div class="planlayout">
+    <div class="planmain">${filtersHTML(all)}
+      ${!all.length ? '<p class="status">Save a recipe first, then drag it onto a day.</p>' : !list.length ? '<p class="status">No recipes match that. Try another word or clear the filter.</p>' : `<div class="grid">${list.map(r => cardHTML(r, true)).join('')}</div>`}</div>
+    <aside class="planner" aria-label="Meal Planner">
+      <div class="pl-head"><h3>Meal Planner</h3><span class="pl-nav"><button class="x" type="button" id="wPrev" aria-label="Previous week">‹</button><button class="x" type="button" id="wNext" aria-label="Next week">›</button></span></div>
+      ${state.canWrite ? `<div class="pl-search"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg><input id="plFind" type="search" autocomplete="off" placeholder="${planTarget ? 'Find a recipe for '+esc(dayName(fromIso(planTarget))) : 'Find a recipe to add'}" aria-label="Find a recipe to add"></div>
+      <ul class="pl-results" id="plResults" hidden></ul>` : ''}
+      ${pickR ? `<div class="pl-pick">Tap a day to add <b>${esc(pickR.title)}</b> <button class="x" type="button" id="pickX" aria-label="Cancel">×</button></div>` : ''}
+      <div class="pl-week">${isThis ? 'This Week’s Plan' : 'Week of '+esc(shortDate(weekOf))}${!isThis ? ' <button class="linkbtn" type="button" id="wNow">Back to this week</button>' : ''}</div>
+      ${days.map(d => { const k = iso(d); const es = inWeek.filter(p => p.date===k).sort((a,b)=>MEALS.indexOf(a.meal)-MEALS.indexOf(b.meal));
+        const short = d.toLocaleDateString(undefined,{weekday:'short'});
+        return `<div class="pl-day${k===today?' today':''}${planTarget===k?' target':''}" data-date="${k}">
+          <div class="pl-dname">${esc(short)}${k===today?' <small>today</small>':''}</div>
+          <div class="pl-slots">${es.map(p => { const r = byId(p.recipeId); return `<div class="pl-thumb" ${state.canWrite?'draggable="true"':''} data-entry="${esc(p.id)}" title="${esc(r ? r.title : 'Deleted recipe')}">
+              <a href="${r ? '#r-'+esc(r.id) : '#plan'}" draggable="false" aria-label="${esc(r ? r.title : 'Deleted recipe')}">${thumbHTML(r)}</a>${state.canWrite?`<button type="button" class="pl-rm" data-rm="${esc(p.id)}" aria-label="Remove ${esc(r ? r.title : 'this')} from ${esc(short)}">×</button>`:''}</div>`; }).join('')}
+            ${state.canWrite ? `<button type="button" class="pl-drop${es.length?' compact':''}" data-add="${k}" aria-label="Add a recipe to ${esc(dayName(d))}"><span>+</span></button>${es.length ? '' : `<span class="pl-hint">${pickR ? 'Tap to add here' : (window.matchMedia && matchMedia('(hover: none)').matches ? 'Tap + to add a recipe' : 'Drag a recipe here')}</span>`}` : (es.length ? '' : '<span class="pl-hint">Nothing planned</span>')}</div>
+          ${es.map(p => { const r = byId(p.recipeId); return r ? `<div class="pl-caption">${esc(short)}: ${esc(r.title)} (✓)</div>` : ''; }).join('')}
+        </div>`; }).join('')}
+      ${state.canWrite && inWeek.length ? `<button class="btn primary pl-shop" type="button" id="toList">Add this week to grocery list</button>` : ''}
+      <span id="buildmsg"></span>
+    </aside></div>`;
+  bindFilters(renderPlan);
+  const rerender = () => renderPlan();
+  $('#wPrev').onclick = () => { weekOf = addDays(weekOf,-7); rerender(); };
+  $('#wNext').onclick = () => { weekOf = addDays(weekOf,7); rerender(); };
+  if($('#wNow')) $('#wNow').onclick = () => { weekOf = monday(new Date()); rerender(); };
+  if($('#pickX')) $('#pickX').onclick = () => { planPick = ''; rerender(); };
+  const add = async (rid, date) => { const r = byId(rid); if(!r) return;
+    try{ await addToPlan(rid, date, 'Dinner', Number(r.servings)||null); toast(r.title+' → '+dayName(fromIso(date))); }catch(e){ toast('Couldn’t add it ('+(e.code||'error')+')'); } };
+  /* tap flow (phones): + Plan on a card, or + on a day then search */
+  view.querySelectorAll('[data-planit]').forEach(b => b.onclick = e => { e.stopPropagation(); planPick = b.dataset.planit; planTarget = '';
+    rerender(); const p = document.querySelector('.planner'); if(p && window.innerWidth < 900) p.scrollIntoView({ behavior:'smooth', block:'start' }); });
+  view.querySelectorAll('[data-add]').forEach(b => b.onclick = async () => { const k = b.dataset.add;
+    if(planPick){ const id = planPick; planPick = ''; await add(id, k); rerender(); return; }
+    planTarget = planTarget===k ? '' : k; rerender(); const f = $('#plFind'); if(f && planTarget) f.focus(); });
+  view.querySelectorAll('[data-rm]').forEach(b => b.onclick = async e => { e.preventDefault(); e.stopPropagation(); b.disabled = true; try{ await bdoc('plan/'+b.dataset.rm).delete(); }catch{ b.disabled = false; toast('Couldn’t remove it'); } });
+  /* search inside the planner */
+  const f = $('#plFind'), ul = $('#plResults');
+  if(f){ const show = () => { const q = f.value.trim().toLowerCase();
+      const res = (q ? all.filter(r => (r.title||'').toLowerCase().includes(q) || canonList(r.tags).some(t => t.toLowerCase().includes(q))) : (planTarget ? all : [])).slice(0, 8);
+      ul.hidden = !res.length;
+      ul.innerHTML = res.map(r => `<li><button type="button" data-res="${esc(r.id)}"><span class="pl-mini">${thumbHTML(r)}</span><span>${esc(r.title)}</span></button></li>`).join('');
+      ul.querySelectorAll('[data-res]').forEach(b => b.onmousedown = async e => { e.preventDefault(); const id = b.dataset.res;
+        if(planTarget){ const k = planTarget; planTarget = ''; await add(id, k); rerender(); }
+        else { planPick = id; rerender(); } }); };
+    f.addEventListener('input', show); f.addEventListener('focus', show);
+    f.addEventListener('blur', () => setTimeout(() => { ul.hidden = true; }, 150));
+    f.addEventListener('keydown', e => { if(e.key==='Enter'){ const first = ul.querySelector('[data-res]'); if(first){ e.preventDefault(); first.dispatchEvent(new MouseEvent('mousedown')); } } if(e.key==='Escape'){ planTarget=''; f.blur(); rerender(); } }); }
+  /* drag and drop (mouse): cards onto days, planned thumbnails between days */
+  view.querySelectorAll('.card[draggable="true"]').forEach(c => {
+    c.addEventListener('dragstart', e => { e.dataTransfer.setData('text/x-recipe', c.dataset.id); e.dataTransfer.setData('text/plain', c.dataset.id); e.dataTransfer.effectAllowed = 'copy'; c.classList.add('dragging'); document.querySelector('.planner').classList.add('dropping'); });
+    c.addEventListener('dragend', () => { c.classList.remove('dragging'); const p = document.querySelector('.planner'); if(p) p.classList.remove('dropping'); }); });
+  view.querySelectorAll('.pl-thumb[draggable="true"]').forEach(t => {
+    t.addEventListener('dragstart', e => { e.dataTransfer.setData('text/x-entry', t.dataset.entry); e.dataTransfer.effectAllowed = 'move'; document.querySelector('.planner').classList.add('dropping'); });
+    t.addEventListener('dragend', () => { const p = document.querySelector('.planner'); if(p) p.classList.remove('dropping'); }); });
+  view.querySelectorAll('.pl-day').forEach(d => {
+    d.addEventListener('dragover', e => { if(!state.canWrite) return; e.preventDefault(); d.classList.add('over'); });
+    d.addEventListener('dragleave', e => { if(!d.contains(e.relatedTarget)) d.classList.remove('over'); });
+    d.addEventListener('drop', async e => { e.preventDefault(); d.classList.remove('over'); const k = d.dataset.date;
+      const entry = e.dataTransfer.getData('text/x-entry'), rid = e.dataTransfer.getData('text/x-recipe');
+      if(entry){ const p = state.plan.find(x => x.id===entry); if(p && p.date!==k){ try{ await bdoc('plan/'+entry).update({ date: k }); }catch{ toast('Couldn’t move it'); } } }
+      else if(rid) await add(rid, k); }); });
+  if($('#toList')) $('#toList').onclick = () => buildGrocery(inWeek, $('#toList'));
+}
+async function buildGrocery(entries, btn){
+  const lines = []; const forMap = [];
+  for(const p of entries){ const r = byId(p.recipeId); if(!r) continue;
+    const k = (p.servings && r.servings) ? p.servings / r.servings : 1;
+    for(const l of (r.ingredients||[])){ lines.push(lineText(l, k, 'orig') + '   [' + r.title + ']'); } }
+  if(!lines.length){ toast('Those recipes have no ingredients listed'); return; }
+  btn.disabled = true; const msg = $('#buildmsg'); msg.innerHTML = '<p class="msg"><span class="spin"></span> Building your grocery list…</p>';
+  let items = null;
+  if(state.sample){
+    try{
+      const out = await state.sample.json(`Turn these recipe ingredients into one grocery shopping list. Each line ends with the recipe name in [brackets].
+${lines.join('\n')}
+Rules: merge the same ingredient across recipes and add up amounts when units match (otherwise list both amounts, e.g. "1 cup + 2 tbsp milk"). Leave out water. Keep it short and shoppable ("3 cloves garlic", "1 lb ground beef").
+Put each item in exactly one aisle from: ${AISLES.join(', ')}.
+Return ONLY JSON: {"items":[{"text":string,"aisle":string,"for":[recipe names]}]}`, { modelTier:'default' });
+      if(out && Array.isArray(out.items)) items = out.items.filter(i=>i && i.text).map(i => ({ text:String(i.text), aisle: AISLES.includes(i.aisle) ? i.aisle : guessAisle(i.text), for: Array.isArray(i.for) ? i.for.map(String).slice(0,6) : [] }));
+    }catch(e){ msg.innerHTML = '<p class="msg">'+esc(claudeErr(e))+' Adding ingredients one by one instead.</p>'; }
+  }
+  if(!items) items = lines.map(l => { const m = l.match(/^(.*?)\s{3}\[(.*)\]$/); return { text: m[1], aisle: guessAisle(m[1]), for:[m[2]] }; });
+  const have = new Set(state.grocery.filter(g=>!g.checked).map(g=>g.text.toLowerCase()));
+  let n = 0;
+  for(const it of items){ if(have.has(it.text.toLowerCase())) continue;
+    try{ await bdoc('grocery/'+newId('g')).set({ text: it.text, aisle: it.aisle, for: it.for, checked:false, addedBy: state.me||'', createdAt: Date.now()+n }); n++; }
+    catch(e){ if(e.code==='quota_exceeded'){ toast('The list is full. Clear checked items and try again.'); break; } } }
+  btn.disabled = false; msg.innerHTML = '';
+  toast(n ? n+' items added to the grocery list' : 'Everything is already on the list');
+}
+
+/* ---------- grocery ---------- */
+let clearAsk = false;
+function renderGrocery(){
+  if(gate()) return;
+  const items = state.grocery;
+  const open = items.filter(g=>!g.checked), done = items.filter(g=>g.checked);
+  const groups = AISLES.map(a => [a, open.filter(g => (AISLES.includes(g.aisle)?g.aisle:'Other')===a).sort((x,y)=>x.createdAt-y.createdAt)]).filter(([,l])=>l.length);
+  const li = g => `<li class="${g.checked?'done':''}"><label><input type="checkbox" data-ck="${esc(g.id)}" ${g.checked?'checked':''} ${state.canWrite?'':'disabled'}><span><span class="t">${esc(g.text)}</span>${(g.for||[]).length?`<span class="for">for ${esc(g.for.join(', '))}</span>`:''}</span></label>${state.canWrite?`<button class="x" type="button" data-del="${esc(g.id)}" aria-label="Remove ${esc(g.text)}">×</button>`:''}</li>`;
+  view.innerHTML = `<div class="gtop"><h2>Grocery list</h2>
+      ${state.canWrite && done.length ? `<button class="btn small" type="button" id="clrDone">Clear ${done.length} checked</button>` : ''}
+      ${state.canWrite && items.length ? (clearAsk ? '<span class="confirm">Clear the whole list? <button class="btn danger solid small" type="button" id="clrYes">Clear</button><button class="btn small" type="button" id="clrNo">Cancel</button></span>' : '<button class="btn ghost small danger" type="button" id="clrAll">Clear list</button>') : ''}</div>
+    ${state.canWrite ? `<form class="addbar" id="addItem"><input id="newItem" placeholder="Add an item, e.g. paper towels" aria-label="Add an item" autocomplete="off"><button class="btn primary" type="submit">Add</button></form>` : ''}
+    ${!items.length ? `<div class="empty"><h2>Nothing on the list</h2><p>Plan some meals, then tap <b>Add this week to grocery list</b> on the Meal plan tab. Claude combines the ingredients and sorts them by aisle. You can also add things by hand above.</p><a class="btn" href="#plan">Go to meal plan</a></div>` : ''}
+    <div class="glist">
+      ${groups.map(([a,l]) => `<section class="aisle"><h3>${esc(a)}</h3><ul class="gitems">${l.map(li).join('')}</ul></section>`).join('')}
+      ${done.length ? `<section class="aisle"><h3>In the cart · ${done.length}</h3><ul class="gitems">${done.map(li).join('')}</ul></section>` : ''}
+    </div>`;
+  view.querySelectorAll('[data-ck]').forEach(c => c.onchange = async () => { try{ await bdoc('grocery/'+c.dataset.ck).update({ checked: c.checked }); }catch{ c.checked = !c.checked; toast('Couldn’t update that item'); } });
+  view.querySelectorAll('[data-del]').forEach(b => b.onclick = async () => { b.disabled=true; try{ await bdoc('grocery/'+b.dataset.del).delete(); }catch{ b.disabled=false; } });
+  const f = $('#addItem'); if(f) f.onsubmit = async e => { e.preventDefault(); const inp = $('#newItem'); const t = inp.value.trim(); if(!t) return;
+    inp.value=''; try{ await bdoc('grocery/'+newId('g')).set({ text:t, aisle: guessAisle(t), for:[], checked:false, addedBy: state.me||'', createdAt: Date.now() }); }catch(err){ inp.value=t; toast('Couldn’t add it ('+(err.code||'error')+')'); } inp.focus(); };
+  if($('#clrDone')) $('#clrDone').onclick = async () => { $('#clrDone').disabled=true; for(const g of done){ try{ await bdoc('grocery/'+g.id).delete(); }catch{} } };
+  if($('#clrAll')) $('#clrAll').onclick = () => { clearAsk = true; renderGrocery(); };
+  if($('#clrNo')) $('#clrNo').onclick = () => { clearAsk = false; renderGrocery(); };
+  if($('#clrYes')) $('#clrYes').onclick = async () => { clearAsk=false; $('#clrYes').disabled=true; for(const g of items){ try{ await bdoc('grocery/'+g.id).delete(); }catch{} } };
+}
+
+/* ---------- shared: Claude reads material into a recipe ---------- */
+const SCHEMA = `{"title": string, "author": creator handle or name if shown else "", "servings": number or null, "prepMinutes": number or null, "cookMinutes": number or null,
+ "ingredients": [strings, one per ingredient, amount and unit first, e.g. "2 tbsp soy sauce"],
+ "steps": [strings, one clear instruction each, no numbering],
+ ${TAG_RULE},
+ "notes": string with tips, swaps or storage advice from the source, else "",
+ "sourceUrl": a link to the original recipe if one appears in the material, else "",
+ "coverImage": the number (1 = first) of the attached image that best shows the finished dish, or 0 if none of them show the food (for example a screenshot of only text),
+ "inferred": true if you filled in any ingredients, amounts or steps that the material did not give, else false,
+ "nutrition": {"calories": number, "protein": grams, "carbs": grams, "fat": grams} estimated PER SERVING, or null if there are no ingredients}`;
+const RULES = `Use what the material says first, word for word where it gives ingredients, amounts and steps. Skip hashtags, promo codes and calls to follow.
+When the material shows or names a dish but leaves out the ingredients, the amounts or the steps, work the recipe out: identify the dish from the title, the photos (what you can see in the pan or on the plate), any ingredients mentioned, and words in the link (recipe-site links usually contain the dish name). Then fill the gaps with how well-known, similar recipes for that dish are made, matching what is visible and anything the creator did say, and give normal home-cook amounts for the servings. Set "inferred" to true and start "notes" with one plain sentence saying which parts came from the post and which you filled in from similar recipes.`;
+function recipePrompt(url, text, nImg, nVid, dish){
+  return `You turn recipes shared on social media, websites, notes or photos into clean, saved recipes.
+Post link: ${url || '(none)'}
+${dish ? `Dish name (typed by the person saving it): ${dish}` : ''}
+Caption / pasted text:
+"""
+${(text||'').slice(0,20000) || '(none, see the images)'}
+"""
+${nImg ? `Attached: ${nImg} image(s)${nVid ? `, ${nVid} of them stills taken in order from the recipe video (read any on-screen text and what is being added)` : ''}. Images may be screenshots, photos of cookbook pages or handwritten cards.` : ''}
+Return ONLY a JSON object with these keys:
+${SCHEMA}
+${RULES}
+Only if nothing in the material identifies a dish at all, return {"error": "short reason"} (for example, a social media link with no caption, photo or dish name).`; }
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+function completeRecipe(r, images){
+  return askClaude(`Complete this saved recipe. The original post left parts out.
+Dish name: ${r.title || '(not given, work it out from the photo)'}
+Post link: ${r.sourceUrl || '(none)'}
+${(r._caption||'').trim() ? `Original caption:\n"""\n${r._caption.slice(0,8000)}\n"""` : ''}
+Ingredients already listed (keep these, add amounts where missing):\n${(r.ingredients||[]).join('\n') || '(none)'}
+Steps already listed (keep these, add any missing):\n${(r.steps||[]).join('\n') || '(none)'}
+Servings: ${r.servings || 'unknown'}
+${images && images.length ? 'Attached: a photo of the dish. Match what you can see.' : ''}
+Fill the gaps with how well-known, similar recipes for this dish are made, using normal home-cook amounts.
+Return ONLY JSON: {"title": string, "servings": number, "prepMinutes": number, "cookMinutes": number, "ingredients": [all ingredients, amount first], "steps": [all steps, no numbering], ${TAG_RULE}, "notes": "one plain sentence saying what came from the post and what you filled in from similar recipes", "nutrition": {"calories": number, "protein": grams, "carbs": grams, "fat": grams} per serving}
+If you can't tell what dish this is, return {"error": "short reason"}.`, images);
+}
+function mergeSuggestion(d, out){
+  if(out.title && !d.title) d.title = String(out.title);
+  for(const k of ['servings','prepMinutes','cookMinutes']) if(!Number(d[k]) && Number(out[k])) d[k] = Number(out[k]);
+  if(Array.isArray(out.ingredients) && out.ingredients.length) d.ingredients = out.ingredients.map(String);
+  if(Array.isArray(out.steps) && out.steps.length) d.steps = out.steps.map(String);
+  if(!(d.tags||[]).length) d.tags = facetTags(out);
+  if(out.nutrition && typeof out.nutrition==='object' && !(d.nutrition && d.nutrition.calories)) d.nutrition = { calories:+out.nutrition.calories||0, protein:+out.nutrition.protein||0, carbs:+out.nutrition.carbs||0, fat:+out.nutrition.fat||0 };
+  if(out.notes){ const old = (d.notes||'').trim(); d.notes = (!old || /\b(no|without|not)\b[^.]*\b(ingredient|amount|step)/i.test(old)) ? String(out.notes) : old + '\n\n' + out.notes; }
+  d.inferred = true;
+}
+async function askClaude(prompt, images){
+  const opts = { modelTier:'default' };
+  if(images && images.length && state.imgOK) opts.images = images.slice(0, state.imgMax);
+  try{ return await state.sample.json(prompt, opts); }
+  catch(e){ if(e && e.code==='rate_limited'){ await sleep(20000); return await state.sample.json(prompt, opts); } throw e; }
+}
+function toFields(out){
+  const num = x => { const v = Number(x); return Number.isFinite(v) && v>0 ? v : null; };
+  const nu = out.nutrition && typeof out.nutrition==='object' ? { calories:+out.nutrition.calories||0, protein:+out.nutrition.protein||0, carbs:+out.nutrition.carbs||0, fat:+out.nutrition.fat||0 } : null;
+  return { title: String(out.title||'').trim().slice(0,200), author: String(out.author||''), servings: num(out.servings), prepMinutes: num(out.prepMinutes), cookMinutes: num(out.cookMinutes),
+    ingredients: Array.isArray(out.ingredients) ? out.ingredients.map(String).filter(Boolean) : [], steps: Array.isArray(out.steps) ? out.steps.map(String).filter(Boolean) : [],
+    tags: facetTags(out), inferred: !!out.inferred, notes: String(out.notes||''), sourceUrl: safeUrl(String(out.sourceUrl||'')), nutrition: nu && (nu.calories||nu.protein) ? nu : null };
+}
+async function saveImported(f, { sourceUrl, photoBlob, photoId } = {}){
+  let pid = photoId || '';
+  if(!pid && photoBlob && state.assets){ try{ pid = (await state.assets.upload(photoBlob)).id; }catch{} }
+  const url = normUrl(sourceUrl || f.sourceUrl || '');
+  const rid = newId('r');
+  await bdoc('recipes/'+rid).set({ ...f, sourceUrl: url, platform: platform(url), cookbooks: [], photoId: pid, needsReview: true,
+    addedBy: state.me||'', createdAt: Date.now(), updatedAt: Date.now() });
+  return rid;
+}
+async function blobFromAsset(id){ try{ const r = await fetch('/_blob/'+id); if(!r.ok) return null; return await r.blob(); }catch{ return null; } }
+
+/* ---------- inbox + bulk import ---------- */
+let bulk = { running:false, stop:false, log:[] }, qsShots = [];
+function logLine(t, kind, rid){ bulk.log.unshift({ t, kind, rid }); const el = $('#bulkLog'); if(el) el.innerHTML = logHTML(); }
+function logHTML(){ return bulk.log.slice(0,60).map(l => `<li class="${l.kind}">${l.kind==='ok'?'✓':l.kind==='skip'?'–':l.kind==='err'?'!':'…'} ${l.rid?`<a href="#r-${esc(l.rid)}">${esc(l.t)}</a>`:esc(l.t)}</li>`).join(''); }
+function renderInbox(){
+  if(gate()) return;
+  if(!state.canWrite){ view.innerHTML = '<div class="empty"><h2>View only</h2><p>You’re a Viewer in this book. Ask its Owner or an Admin to make you a Contributor so you can import recipes.</p></div>'; return; }
+  const items = [...state.inbox].sort((a,b)=>b.createdAt-a.createdAt);
+  const ready = items;
+  const canC = !!state.sample;
+  view.innerHTML = `<div class="ibx">
+    <section class="box">
+      <h3>Quick save</h3>
+      <p class="hint">Found something while scrolling? Paste the link here and move on. Add the caption or a screenshot if you can; that’s what Claude reads later.</p>
+      <form id="qs" class="ibx-form" novalidate>
+        <div class="field"><label for="qs-url">Link</label><input id="qs-url" type="url" inputmode="url" placeholder="https://www.tiktok.com/@…/video/…"></div>
+        <div class="field"><label for="qs-note">Caption or note <small>(optional)</small></label><textarea id="qs-note" style="min-height:70px" placeholder="Paste the caption, or just the dish name, like “Marry Me chicken pasta”"></textarea></div>
+        ${state.assets ? `<div class="field"><span class="lbl">Screenshots <small>(optional, up to 4)</small></span><div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap"><label class="btn small" for="qs-shots">Add screenshots</label><input id="qs-shots" type="file" accept="image/*" multiple hidden><div class="shots" id="qsShots"></div></div></div>` : ''}
+        <div><button class="btn primary" type="submit" id="qsSave">Save to inbox</button> <span id="qsMsg"></span></div>
+      </form>
+    </section>
+
+    <section class="box">
+      <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap"><h3 style="margin-right:auto">Waiting in the inbox · ${items.length}</h3>
+        ${canC && ready.length ? `<button class="btn primary small" type="button" id="doAll" ${bulk.running?'disabled':''}>Fill in ${ready.length} with Claude</button>` : ''}</div>
+      ${!items.length ? '<p class="status" style="margin:0">Nothing waiting. Links you quick-save land here.</p>' : `<ul class="ilist">${items.map(i => `<li>
+        <div class="imain">${i.url ? `<span class="src">${esc(platform(i.url)||'link')}</span> <a href="${esc(safeUrl(i.url))}" target="_blank" rel="noopener" class="iurl">${esc(i.url.replace(/^https?:\/\/(www\.)?/,'').slice(0,60))}</a>` : '<span class="src">note</span>'}
+          ${(i.note||'').trim() ? `<div class="inote">${esc(i.note.slice(0,180))}${i.note.length>180?'…':''}</div>` : ''}
+          ${(i.shotIds||[]).length ? `<div class="shots" style="margin-top:6px">${i.shotIds.map(s=>`<figure style="width:48px;height:64px"><img src="/_blob/${esc(s)}" alt="" loading="lazy"></figure>`).join('')}</div>` : ''}
+          ${!(i.note||'').trim() && !(i.shotIds||[]).length ? '<div class="inote warn">Just a link. Claude will try to work it out, but TikTok and Instagram links don’t say what the dish is. A caption, screenshot or dish name in the note helps a lot.</div>' : ''}
+          <div class="by">Saved by ${esc(who(i.addedBy))} · ${esc(new Date(i.createdAt).toLocaleDateString(undefined,{month:'short',day:'numeric'}))}</div></div>
+        <div class="iact"><button class="btn small" type="button" data-make="${esc(i.id)}">Make recipe</button>
+          ${canC ? `<button class="btn small" type="button" data-auto="${esc(i.id)}" ${bulk.running?'disabled':''}>Fill in with Claude</button>` : ''}
+          <button class="x" type="button" data-irm="${esc(i.id)}" aria-label="Remove from inbox">×</button></div></li>`).join('')}</ul>`}
+    </section>
+
+    ${canC ? `<section class="box">
+      <h3>Bring in a lot at once</h3>
+      <p class="hint">Each recipe is saved with a “Check me” label so you can look it over later.</p>
+      ${state.imgOK ? `<div class="field"><span class="lbl">Screenshots and photos</span><small>Pick as many as you like. Each photo becomes its own recipe: screenshots of posts, cookbook pages, handwritten cards.</small>
+        <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap"><label class="btn" for="bulkPics">Choose photos</label><input id="bulkPics" type="file" accept="image/*" multiple hidden></div></div>` : ''}
+      <div class="field"><label for="bulkText">Text with one or many recipes</label><small>Paste from Notes, an email, a recipe website or an exported file. Claude finds every recipe in it.</small>
+        <textarea id="bulkText" style="min-height:120px" placeholder="Paste here"></textarea>
+        <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap"><label class="btn small" for="bulkFile">Or open a file (.txt, .csv, .json, .html, .md)</label><input id="bulkFile" type="file" accept=".txt,.csv,.json,.html,.htm,.md,.xml,text/*,application/json" multiple hidden>
+          <button class="btn primary" type="button" id="bulkGo" ${bulk.running?'disabled':''}>Find recipes in this text</button></div></div>
+      ${bulk.running ? '<div><button class="btn danger small" type="button" id="bulkStop">Stop after this one</button></div>' : ''}
+      <ul class="log" id="bulkLog">${logHTML()}</ul>
+    </section>` : ''}
+  </div>`;
+
+  /* quick save */
+  const showQs = () => { const el = $('#qsShots'); if(!el) return; el.innerHTML = qsShots.map((f,i)=>`<figure><img src="${URL.createObjectURL(f)}" alt="Screenshot ${i+1}"><button type="button" data-qx="${i}" aria-label="Remove screenshot ${i+1}">×</button></figure>`).join('');
+    el.querySelectorAll('[data-qx]').forEach(b => b.onclick = () => { qsShots.splice(+b.dataset.qx,1); showQs(); }); };
+  showQs();
+  if($('#qs-shots')) $('#qs-shots').onchange = e => { for(const f of e.target.files) if(f.type.startsWith('image/') && qsShots.length<4) qsShots.push(f); e.target.value=''; showQs(); };
+  $('#qs').addEventListener('paste', e => { const fs=[...(e.clipboardData?.files||[])].filter(f=>f.type.startsWith('image/')); if(fs.length && state.assets){ e.preventDefault(); fs.forEach(f=>{ if(qsShots.length<4) qsShots.push(f); }); showQs(); } });
+  $('#qs').onsubmit = async e => { e.preventDefault();
+    const url = $('#qs-url').value.trim(), note = $('#qs-note').value.trim(), m = $('#qsMsg');
+    if(!url && !note && !qsShots.length){ m.innerHTML = '<span class="msg err">Paste a link, a caption or a screenshot.</span>'; return; }
+    const b = $('#qsSave'); b.disabled = true; m.innerHTML = '<span class="msg"><span class="spin"></span> Saving…</span>';
+    try{ const ids = [];
+      for(const f of qsShots){ try{ ids.push((await state.assets.upload(f)).id); }catch{} }
+      await bdoc('inbox/'+newId('i')).set({ url, note, shotIds: ids, addedBy: state.me||'', createdAt: Date.now() });
+      qsShots = []; toast('Saved to the inbox'); renderInbox(); $('#qs-url').focus();
+    }catch(err){ b.disabled=false; m.innerHTML = '<span class="msg err">Couldn’t save ('+esc(err.code||'error')+').</span>'; } };
+
+  /* inbox actions */
+  view.querySelectorAll('[data-irm]').forEach(b => b.onclick = async () => { b.disabled=true; try{ await bdoc('inbox/'+b.dataset.irm).delete(); }catch{ b.disabled=false; } });
+  view.querySelectorAll('[data-make]').forEach(b => b.onclick = async () => {
+    const it = state.inbox.find(x=>x.id===b.dataset.make); if(!it) return; b.disabled = true;
+    draft = {_key:'new', title:'', sourceUrl: it.url||'', author:'', servings:'', prepMinutes:'', cookMinutes:'', ingredients:[], steps:[], tags:[], cookbooks:[], notes:'', photoId:'', nutrition:null, _caption: it.note||'', _inboxId: it.id, _mode:'link', _needHelp: !!((it.note||'').trim() || (it.shotIds||[]).length)};
+    shots = []; photoFile = null;
+    for(const sid of (it.shotIds||[])){ const bl = await blobFromAsset(sid); if(bl) shots.push({ blob: bl, url: URL.createObjectURL(bl), assetId: sid }); }
+    location.hash = 'new'; });
+  const autoOne = async it => {
+    const imgs = []; for(const sid of (it.shotIds||[])){ const bl = await blobFromAsset(sid); if(bl) imgs.push(bl); }
+    const out = await askClaude(recipePrompt(it.url, it.note, imgs.length, 0), imgs);
+    if(!out || out.error || !out.title){ logLine((it.url||'Note')+': '+(out?.error||'no recipe found')+'. Left in the inbox; add the dish name or a screenshot.', 'skip'); return false; }
+    const rid = await saveImported(toFields(out), { sourceUrl: it.url, photoId: (it.shotIds||[])[ (Number(out.coverImage)||1) - 1 ] || (out.coverImage===0 ? '' : (it.shotIds||[])[0]) });
+    await bdoc('inbox/'+it.id).delete();
+    logLine(String(out.title), 'ok', rid); return true; };
+  const runAll = async list => { bulk.running = true; bulk.stop = false; renderInbox(); let n=0;
+    for(const it of list){ if(bulk.stop) break; try{ if(await autoOne(it)) n++; }catch(e){ logLine((it.url||'Note')+': '+claudeErr(e), 'err'); if(e && (e.code==='not_granted')) break; } }
+    bulk.running = false; renderInbox(); toast(n+' recipe'+(n===1?'':'s')+' added'); };
+  view.querySelectorAll('[data-auto]').forEach(b => b.onclick = () => { const it = state.inbox.find(x=>x.id===b.dataset.auto); if(it) runAll([it]); });
+  if($('#doAll')) $('#doAll').onclick = () => runAll(ready);
+  if($('#bulkStop')) $('#bulkStop').onclick = () => { bulk.stop = true; $('#bulkStop').disabled = true; $('#bulkStop').textContent = 'Stopping…'; };
+
+  /* bulk photos: one recipe per photo */
+  if($('#bulkPics')) $('#bulkPics').onchange = async e => { const files = [...e.target.files].filter(f=>f.type.startsWith('image/')); e.target.value=''; if(!files.length) return;
+    bulk.running = true; bulk.stop = false; renderInbox(); let n=0;
+    for(let i=0;i<files.length;i++){ if(bulk.stop) break; const f = files[i];
+      logLine('Reading photo '+(i+1)+' of '+files.length+'…', 'wip');
+      try{ const out = await askClaude(recipePrompt('', '', 1, 0), [f]); bulk.log.shift();
+        if(!out || out.error || !out.title){ logLine('Photo '+(i+1)+' ('+f.name+'): '+(out?.error||'no recipe found'), 'skip'); continue; }
+        const rid = await saveImported(toFields(out), { photoBlob: out.coverImage===0 ? null : f }); n++; logLine(String(out.title), 'ok', rid);
+      }catch(err){ bulk.log.shift(); logLine('Photo '+(i+1)+': '+claudeErr(err), 'err'); if(err && err.code==='not_granted') break; } }
+    bulk.running = false; renderInbox(); toast(n+' recipe'+(n===1?'':'s')+' added'); };
+
+  /* bulk text: many recipes in one paste or file */
+  if($('#bulkFile')) $('#bulkFile').onchange = async e => { const fs=[...e.target.files]; e.target.value=''; let t='';
+    for(const f of fs){ try{ let s = await f.text(); if(/html?$/i.test(f.name) || /<\/?(div|p|li|br)\b/i.test(s.slice(0,5000))){ const d = new DOMParser().parseFromString(s,'text/html'); d.querySelectorAll('script,style').forEach(x=>x.remove()); s = d.body ? d.body.innerText || d.body.textContent : s; } t += (t?'\n\n':'') + s; }catch{} }
+    const ta = $('#bulkText'); ta.value = (ta.value ? ta.value+'\n\n' : '') + t.replace(/\n{3,}/g,'\n\n'); toast('Loaded '+fs.length+' file'+(fs.length===1?'':'s')+'. Tap “Find recipes in this text”.'); };
+  if($('#bulkGo')) $('#bulkGo').onclick = async () => {
+    const text = $('#bulkText').value.trim(); if(!text){ toast('Paste some text or open a file first'); return; }
+    const chunks = []; let cur = '';
+    for(const para of text.split(/\n\s*\n/)){ if((cur+para).length > 12000 && cur){ chunks.push(cur); cur=''; } cur += para + '\n\n'; }
+    if(cur.trim()) chunks.push(cur);
+    bulk.running = true; bulk.stop = false; renderInbox(); let n=0;
+    for(let i=0;i<chunks.length;i++){ if(bulk.stop) break;
+      logLine('Reading part '+(i+1)+' of '+chunks.length+'…', 'wip');
+      try{ const out = await askClaude(`This text may hold one recipe, many recipes, or a recipe split across the edge of this excerpt (part ${i+1} of ${chunks.length}).
+"""
+${chunks[i]}
+"""
+Return ONLY JSON: {"recipes": [ ${SCHEMA} , ... ]}
+Include every complete recipe. Skip anything that isn't a recipe, and skip a recipe that is clearly cut off with no ingredients or no steps. ${RULES}`);
+        bulk.log.shift();
+        const list = (out && Array.isArray(out.recipes)) ? out.recipes : [];
+        if(!list.length) logLine('Part '+(i+1)+': no recipes found', 'skip');
+        for(const r of list){ if(!r || !r.title) continue; const rid = await saveImported(toFields(r)); n++; logLine(String(r.title), 'ok', rid); }
+      }catch(err){ bulk.log.shift(); logLine('Part '+(i+1)+': '+claudeErr(err), 'err'); if(err && err.code==='not_granted') break; } }
+    bulk.running = false; if(n) $('#bulkText') && ($('#bulkText').value=''); renderInbox(); if(n) $('#bulkText').value=''; toast(n+' recipe'+(n===1?'':'s')+' added'); };
+}
+
+/* ---------- video → frames ---------- */
+async function videoFrames(file, count){
+  const url = URL.createObjectURL(file);
+  const v = document.createElement('video'); v.muted = true; v.playsInline = true; v.preload = 'auto'; v.src = url;
+  try{
+    await new Promise((res, rej) => { v.onloadeddata = res; v.onerror = () => rej(new Error('This video format can’t be opened here. Try an .mp4.')); setTimeout(()=>rej(new Error('The video took too long to open.')), 20000); });
+    const dur = v.duration; if(!isFinite(dur) || dur<=0) throw new Error('Couldn’t read the video length.');
+    const W = Math.min(720, v.videoWidth||720), H = Math.round((v.videoHeight||1280) * W / (v.videoWidth||720));
+    const c = document.createElement('canvas'); c.width=W; c.height=H; const ctx = c.getContext('2d');
+    const out = [];
+    for(let i=0;i<count;i++){
+      v.currentTime = Math.min(dur-0.05, dur*(i+0.5)/count);
+      await new Promise(res => { v.onseeked = res; setTimeout(res, 4000); });
+      ctx.drawImage(v,0,0,W,H);
+      const b = await new Promise(res => c.toBlob(res,'image/jpeg',.82)); if(b) out.push(b);
+    }
+    return out;
+  } finally { URL.revokeObjectURL(url); }
+}
+
+/* ---------- editor ---------- */
+let draft = null, shots = [], photoFile = null;
+function renderEditor(id){
+  if(!state.canWrite){ view.innerHTML = '<div class="empty"><h2>View only</h2><p>You’re a Viewer in this book. Ask its Owner or an Admin to make you a Contributor so you can add recipes.</p><a class="btn" href="#">Back</a></div>'; return; }
+  const existing = id ? byId(id) : null;
+  if(id && !existing){ view.innerHTML = state.loaded ? '<p class="status">That recipe no longer exists. <a href="#">Back</a></p>' : '<p class="status">Opening recipe…</p>'; return; }
+  const key = id || 'new';
+  if(!draft || draft._key!==key){
+    draft = existing ? JSON.parse(JSON.stringify({...existing, _key:key})) : {_key:key, title:'', sourceUrl:'', author:'', servings:'', prepMinutes:'', cookMinutes:'', ingredients:[], steps:[], tags:[], cookbooks:[], notes:'', photoId:'', nutrition:null};
+    draft.cookbooks = draft.cookbooks || []; shots = []; photoFile = null;
+  }
+  const d = draft; const n = d.nutrition || {};
+  const canClaude = !!state.sample;
+  const books = [...new Set([...allBooks(), ...d.cookbooks])].sort((a,b)=>a.localeCompare(b));
+  const mode = id ? 'edit' : (canClaude ? (d._mode || 'choose') : 'manual');
+  if(mode==='choose'){
+    view.innerHTML = `<div class="editor">
+      <a class="btn ghost back" href="#" style="justify-self:start">← Cancel</a>
+      <h2 style="font-size:1.9rem">Add a recipe</h2>
+      <p class="status" style="margin:0">How are you adding this one?</p>
+      <div class="choose">
+        <button class="choice" type="button" data-mode="link"><b>From a link</b><span>Paste the link and type what the dish is called. Claude writes the full recipe.</span></button>
+        <button class="choice" type="button" data-mode="manual"><b>Type it in myself</b><span>A family recipe, a cookbook, or something you already know by heart.</span></button>
+      </div></div>`;
+    view.querySelectorAll('[data-mode]').forEach(b => b.onclick = () => { d._mode = b.dataset.mode; renderEditor(id); const f = $(d._mode==='link' ? '#f-url' : '#f-title'); if(f) f.focus(); });
+    return;
+  }
+  const showForm = mode!=='link' || d._filled;
+  view.innerHTML = `
+  <form class="editor" id="form" novalidate>
+    <a class="btn ghost back" href="${id?'#r-'+esc(id):'#'}" style="justify-self:start">← Cancel</a>
+    <div style="display:flex;gap:10px;align-items:baseline;flex-wrap:wrap"><h2 style="font-size:1.9rem;margin-right:auto">${id?'Edit recipe':mode==='link'?'Add from a link':'Add a recipe'}</h2>
+      ${!id && canClaude ? `<button class="btn ghost small" type="button" id="switchMode">${mode==='link'?'Type it in myself instead':'Use a link instead'}</button>` : ''}</div>
+    ${mode==='link' ? `<section class="box claude-box">
+      <div class="field"><label for="f-url">Link</label><input id="f-url" type="url" inputmode="url" placeholder="Paste the link to the post" value="${esc(d.sourceUrl)}"></div>
+      <div class="field"><label for="f-dish">Title</label><input id="f-dish" placeholder="What’s the dish? e.g. Marry Me chicken pasta" enterkeyhint="go" value="${esc(d._dish||'')}"></div>
+      ${d._needHelp ? `<div class="helpbox"><b>Optional extras.</b> Anything here helps Claude when a link alone doesn’t say what the dish is.</div>
+      <div class="field"><label for="f-cap">Or paste the caption</label><small>Tap “more” on the caption and copy all of it.</small><textarea id="f-cap" placeholder="Paste here" style="min-height:90px">${esc(d._caption||'')}</textarea></div>
+      ${state.imgOK ? `<div class="field"><span class="lbl">Or add screenshots or the video <small>(Claude reads up to ${state.imgMax} images; a video is turned into stills)</small></span>
+        <label class="drop" id="drop" for="f-shots"><span class="btn" aria-hidden="true">Choose photos or a video</span><small>or drop / paste them here</small></label>
+        <input id="f-shots" type="file" accept="image/*,video/*" multiple hidden>
+        <small>To get a video: use the app’s Download or Save option, or screen-record the post while it plays.</small>
+        <div class="shots" id="shots"></div><span id="vidmsg"></span></div>` : ''}` : ''}
+      <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap"><button class="btn primary" type="button" id="read">${d._filled ? 'Read it again' : 'Get the recipe'}</button><span id="readmsg">${d._readMsg||''}</span>
+        ${!d._needHelp ? '<button class="btn ghost small" type="button" id="moreHelp">Add a caption or screenshots</button>' : ''}</div>
+    </section>` : ''}
+    <section class="box" ${showForm?'':'hidden'}>
+      <h3>Recipe</h3>
+      <div class="field"><label for="f-title">Name</label><input id="f-title" required value="${esc(d.title)}" placeholder="Crispy chili garlic noodles"></div>
+      ${mode!=='link' ? `<div class="field"><label for="f-url">Link <small>(optional)</small></label><input id="f-url" type="url" value="${esc(d.sourceUrl)}"></div>` : ''}
+      <div class="row">
+        <div class="field"><label for="f-serv">Servings</label><input id="f-serv" type="number" min="0" inputmode="numeric" value="${esc(d.servings)}"></div>
+        <div class="field"><label for="f-prep">Prep (min)</label><input id="f-prep" type="number" min="0" inputmode="numeric" value="${esc(d.prepMinutes)}"></div>
+        <div class="field"><label for="f-cook">Cook (min)</label><input id="f-cook" type="number" min="0" inputmode="numeric" value="${esc(d.cookMinutes)}"></div>
+        <div class="field"><label for="f-author">Creator</label><input id="f-author" value="${esc(d.author)}" placeholder="@handle"></div>
+      </div>
+      ${state.sample ? `<div class="suggestbar"><span>Missing ingredients, amounts or steps? Claude can work them out from the dish name, photo and similar recipes.</span><button class="btn small" type="button" id="suggest">Suggest what’s missing</button><span id="sugmsg"></span></div>` : ''}
+      <div class="field"><label for="f-ing">Ingredients</label><small>One per line, amount first. That’s what lets you resize, convert units and build the grocery list.</small><textarea id="f-ing" style="min-height:170px" placeholder="2 cups cooked rice&#10;1 tbsp soy sauce">${esc((d.ingredients||[]).join('\n'))}</textarea></div>
+      <div class="field"><label for="f-steps">Instructions</label><small>One step per line. Times like “bake 20 minutes” become timers in cooking mode.</small><textarea id="f-steps" style="min-height:190px">${esc((d.steps||[]).join('\n'))}</textarea></div>
+      <div class="field"><label for="editCats-in">Categories</label><small>Pick from the list, or type a new one and press Enter. New categories are shared with everyone.</small><div id="editCats"></div></div>
+      <div class="field"><span class="lbl">Cookbooks</span><small>Group recipes, like “Weeknight dinners” or “Mom’s favorites”.</small>
+        <div class="bookpick" id="bookpick">${books.map(b=>`<button class="chip book" type="button" data-book="${esc(b)}" aria-pressed="${d.cookbooks.includes(b)}">▤ ${esc(b)}</button>`).join('')}
+          <input class="inp" id="newBook" placeholder="New cookbook" style="width:160px" aria-label="New cookbook name"><button class="btn small" type="button" id="addBook">Add</button></div></div>
+      <div class="field"><span class="lbl">Nutrition per serving</span><small>Estimates. Claude fills these in when it reads a post; you can also leave them empty.</small>
+        <div class="row">
+          <div class="field"><label for="f-kcal">Calories</label><input id="f-kcal" type="number" min="0" value="${esc(n.calories||'')}"></div>
+          <div class="field"><label for="f-pro">Protein (g)</label><input id="f-pro" type="number" min="0" value="${esc(n.protein||'')}"></div>
+          <div class="field"><label for="f-carb">Carbs (g)</label><input id="f-carb" type="number" min="0" value="${esc(n.carbs||'')}"></div>
+          <div class="field"><label for="f-fat">Fat (g)</label><input id="f-fat" type="number" min="0" value="${esc(n.fat||'')}"></div>
+        </div></div>
+      <div class="field"><label for="f-notes">Notes</label><textarea id="f-notes" style="min-height:80px" placeholder="Swaps, tips, what we changed">${esc(d.notes)}</textarea></div>
+      ${state.assets ? `<div class="field"><label for="f-photo">Photo</label>
+        <div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap"><div class="photo-prev" id="pprev"></div>
+        <div class="phototools" style="flex:1 1 260px"><a class="btn small" id="gImg" href="${esc(googleImg(d.title || d._dish))}" target="_blank" rel="noopener">Find a photo on Google ↗</a><input id="f-photo" type="file" accept="image/*">${pasteBoxHTML('editPaste')}</div></div>
+        <small id="photoNote"></small></div>` : ''}
+    </section>
+    <div class="savebar" ${showForm?'':'hidden'}><span id="savemsg" style="margin-right:auto;align-self:center"></span><a class="btn" href="${id?'#r-'+esc(id):'#'}">Cancel</a><button class="btn primary" type="submit" id="save">${id?'Save changes':'Save to recipe box'}</button></div>
+  </form>`;
+
+  const form = $('#form');
+  const sync = () => {
+    const v = s => ($(s)||{}).value ?? '';
+    d.title=v('#f-title').trim(); d.sourceUrl=v('#f-url').trim(); d.author=v('#f-author').trim();
+    d.servings=v('#f-serv'); d.prepMinutes=v('#f-prep'); d.cookMinutes=v('#f-cook');
+    d.ingredients=v('#f-ing').split('\n').map(s=>s.replace(/^\s*[-•*▢□]\s*/,'').trim()).filter(Boolean);
+    d.steps=v('#f-steps').split('\n').map(s=>s.replace(/^\s*(step\s*)?\d+[.):]\s*/i,'').trim()).filter(Boolean);
+    d.notes=v('#f-notes').trim(); if($('#f-cap')) d._caption=$('#f-cap').value; if($('#f-dish')) d._dish=$('#f-dish').value.trim();
+    d.nutrition = { calories:+v('#f-kcal')||0, protein:+v('#f-pro')||0, carbs:+v('#f-carb')||0, fat:+v('#f-fat')||0 };
+  };
+  form.addEventListener('input', sync);
+  const coverIdx = () => { const i = d._cover==null ? 0 : d._cover; return i>=0 && i<shots.length ? i : -1; };
+  const drawPreview = () => { const p = $('#pprev'), n = $('#photoNote'); if(!p) return; p.innerHTML = '';
+    let src = '', note = '';
+    if(photoFile){ src = URL.createObjectURL(photoFile); note = 'Your chosen photo.'; }
+    else if(d.photoId){ src = '/_blob/'+d.photoId; note = 'Choose a file to replace it.'; }
+    else if(coverIdx() >= 0){ src = shots[coverIdx()].url; note = 'Using '+(shots[coverIdx()].video?'a still from your video':'your screenshot')+'. Tap a different image above to use that one instead, or choose a file.'; }
+    else { p.innerHTML = coverHTML(d); note = shots.length ? 'None of the images show the finished dish, so it gets this cover. Tap an image above to use it anyway, or choose a file.' : 'No photo yet, so it gets this cover. Choose a file to add one.'; }
+    if(src){ const im=document.createElement('img'); im.src=src; im.alt=''; p.append(im); }
+    if(n) n.textContent = note; };
+  drawPreview();
+
+  /* cookbooks */
+  view.querySelectorAll('[data-book]').forEach(b => b.onclick = () => { sync(); const k=b.dataset.book; d.cookbooks = d.cookbooks.includes(k) ? d.cookbooks.filter(x=>x!==k) : [...d.cookbooks, k]; b.setAttribute('aria-pressed', d.cookbooks.includes(k)); });
+  const addBook = () => { const t = $('#newBook').value.trim().slice(0,40); if(!t) return; sync(); if(!d.cookbooks.includes(t)) d.cookbooks.push(t); renderEditor(id); };
+  $('#addBook').onclick = addBook;
+  $('#newBook').addEventListener('keydown', e => { if(e.key==='Enter'){ e.preventDefault(); addBook(); } });
+
+  /* screenshots + video */
+  const showShots = () => { const el = $('#shots'); if(!el) return;
+    el.innerHTML = ''; shots.forEach((s,i) => { const fig = document.createElement('figure'); const im = document.createElement('img');
+      im.src = s.url; im.alt = (s.video?'Video still ':'Screenshot ')+(i+1); const x = document.createElement('button'); x.type='button'; x.textContent='×'; x.setAttribute('aria-label','Remove image '+(i+1));
+      x.onclick = () => { shots.splice(i,1); if(d._cover!=null && d._cover>i) d._cover--; else if(d._cover===i) d._cover = shots.length ? 0 : null; showShots(); };
+      im.style.cursor='pointer'; im.title='Use as the recipe photo'; im.onclick = () => { d._cover = i; showShots(); };
+      fig.append(im,x);
+      const isCover = !photoFile && !d.photoId && coverIdx()===i;
+      if(s.video || isCover){ const cap=document.createElement('figcaption'); cap.textContent = isCover ? '★ photo' : 'video'; fig.append(cap); } el.append(fig); });
+    drawPreview(); };
+  const addFiles = async files => {
+    const vm = $('#vidmsg');
+    for(const f of files){
+      if(shots.length >= state.imgMax){ if(vm) vm.innerHTML = '<span class="msg">That’s the most images Claude can read at once ('+state.imgMax+').</span>'; break; }
+      if(f.type.startsWith('image/')) shots.push({ blob:f, url:URL.createObjectURL(f) });
+      else if(f.type.startsWith('video/')){
+        if(vm) vm.innerHTML = '<span class="msg"><span class="spin"></span> Taking stills from the video…</span>';
+        try{ const room = state.imgMax - shots.length; const fr = await videoFrames(f, Math.max(1, room));
+          fr.forEach(b => shots.push({ blob:b, url:URL.createObjectURL(b), video:true }));
+          if(vm) vm.innerHTML = '<span class="msg">Took '+fr.length+' stills from the video. Remove any that don’t help.</span>'; }
+        catch(err){ if(vm) vm.innerHTML = '<span class="msg err">'+esc(err.message||'Couldn’t read that video.')+'</span>'; }
+      }
+    }
+    showShots(); };
+  if($('#f-shots')){
+    $('#f-shots').onchange = e => { const fs=[...e.target.files]; e.target.value=''; addFiles(fs); };
+    const drop = $('#drop');
+    drop.addEventListener('dragover', e => { e.preventDefault(); drop.classList.add('over'); });
+    drop.addEventListener('dragleave', () => drop.classList.remove('over'));
+    drop.addEventListener('drop', e => { e.preventDefault(); drop.classList.remove('over'); addFiles([...e.dataTransfer.files]); });
+    form.addEventListener('paste', e => { const fs=[...(e.clipboardData?.files||[])]; if(fs.length){ e.preventDefault(); addFiles(fs); } });
+    showShots();
+  }
+  if($('#f-photo')) $('#f-photo').onchange = e => { photoFile = e.target.files[0] || null; const p=$('#pprev');
+    drawPreview(); if($('#shots')) showShots(); };
+
+  bindPasteBox($('#editPaste'), f => { photoFile = f; drawPreview(); if($('#shots')) showShots(); toast('Photo added. It saves with the recipe.'); });
+  const gi = $('#gImg'); if(gi) form.addEventListener('input', e => { if(e.target.id==='f-title' || e.target.id==='f-dish') gi.href = googleImg(e.target.value); });
+  d.tags = canonList(d.tags); labelPicker($('#editCats'), d.tags.slice(), list => { d.tags = list; });
+  const sw = $('#switchMode'); if(sw) sw.onclick = () => { sync(); d._mode = mode==='link' ? 'manual' : 'link'; d._readMsg=''; renderEditor(id); };
+  const mh = $('#moreHelp'); if(mh) mh.onclick = () => { sync(); d._needHelp = true; d._readMsg=''; renderEditor(id); };
+  if($('#f-url') && mode==='link'){ const u = $('#f-url'); let last = '';
+    const t = $('#f-dish');
+    const go = () => { const b = $('#read'); if(b && !b.disabled && u.value.trim() && t.value.trim()) b.click(); };
+    u.addEventListener('paste', () => setTimeout(() => { if(t.value.trim()) go(); else t.focus(); }, 0));
+    u.addEventListener('keydown', e => { if(e.key==='Enter'){ e.preventDefault(); if(t.value.trim()) go(); else t.focus(); } });
+    t.addEventListener('keydown', e => { if(e.key==='Enter'){ e.preventDefault(); go(); } }); }
+
+  /* Claude completes a recipe the post left unfinished */
+  const sg = $('#suggest');
+  if(sg) sg.onclick = async () => {
+    sync(); const m = $('#sugmsg');
+    if(!d.title && !shots.length && !photoFile && !d.photoId && !(d._caption||'').trim()){ m.innerHTML = '<span class="msg err">Type the dish name first.</span>'; return; }
+    sg.disabled = true; m.innerHTML = '<span class="msg"><span class="spin"></span> Working it out…</span>';
+    try{
+      const imgs = shots.map(s=>s.blob); if(!imgs.length){ const pb = photoFile || (d.photoId ? await blobFromAsset(d.photoId) : null); if(pb) imgs.push(pb); }
+      const out = await completeRecipe(d, imgs);
+      if(!out || out.error){ m.innerHTML = '<span class="msg err">'+esc(out?.error || 'Claude couldn’t tell what dish this is.')+'</span>'; return; }
+      mergeSuggestion(d, out); renderEditor(id);
+      $('#sugmsg').innerHTML = '<span class="msg">Filled in from similar recipes. Check it over, then save.</span>';
+    }catch(e){ m.innerHTML = '<span class="msg err">'+esc(claudeErr(e))+'</span>'; }
+    finally{ const b=$('#suggest'); if(b) b.disabled=false; }
+  };
+
+  /* Claude reads the post */
+  const readBtn = $('#read');
+  if(readBtn) readBtn.onclick = async () => {
+    sync(); const msg = $('#readmsg');
+    if(!d._dish){ msg.innerHTML = '<span class="msg err">Type the dish’s title.</span>'; $('#f-dish').focus(); return; }
+    readBtn.disabled = true; msg.innerHTML = '<span class="msg"><span class="spin"></span> Reading the recipe…</span>';
+    const nVid = shots.filter(s=>s.video).length;
+    const prompt = recipePrompt(d.sourceUrl, d._caption, shots.length, nVid, d._dish || (d._filled ? d.title : ''));
+    try{
+      const out = await askClaude(prompt, shots.map(s=>s.blob));
+      if(!out || out.error){
+        let saved = false;
+        if(!d._inboxId && d.sourceUrl){ try{ const iid = newId('i'); await bdoc('inbox/'+iid).set({ url: d.sourceUrl, note: d._dish||'', shotIds: [], addedBy: state.me||'', createdAt: Date.now() }); d._inboxId = iid; saved = true; }catch{} }
+        d._readMsg = '<span class="msg err">Claude couldn’t make a recipe for “'+esc(d._dish)+'”'+(out && out.error ? ': '+esc(out.error) : '.')+' Try a more specific title, like “creamy Tuscan chicken pasta”.'+(d._inboxId ? ' The link is saved in your Inbox.' : '')+'</span>';
+        renderEditor(id); return; }
+      d._filled = true;
+      d._filled = true;
+      d.title = d._dish || d.title || String(out.title||'');
+      for(const k of ['author','servings','prepMinutes','cookMinutes','notes']) if(out[k]!=null && out[k]!=='') d[k] = out[k];
+      if(Array.isArray(out.ingredients) && out.ingredients.length) d.ingredients = out.ingredients.map(String);
+      if(Array.isArray(out.steps) && out.steps.length) d.steps = out.steps.map(String);
+      d.tags = facetTags(out);
+      if(out.nutrition && typeof out.nutrition==='object') d.nutrition = { calories:+out.nutrition.calories||0, protein:+out.nutrition.protein||0, carbs:+out.nutrition.carbs||0, fat:+out.nutrition.fat||0 };
+      d.inferred = !!out.inferred;
+      if(out.coverImage!=null && shots.length){ const ci = Number(out.coverImage); d._cover = ci>=1 && ci<=shots.length ? ci-1 : -1; }
+      d._readMsg = '<span class="msg">'+(d.inferred ? 'The post didn’t list everything, so Claude filled the gaps from similar recipes. See Notes, check it over below, then save.' : 'Got it. Check it over below, then save.')+'</span>';
+      renderEditor(id);
+    }catch(e){ msg.innerHTML = '<span class="msg err">'+esc(claudeErr(e))+' Or fill it in by hand.</span>'; }
+    finally{ const b=$('#read'); if(b) b.disabled=false; }
+  };
+
+  form.addEventListener('submit', async e => {
+    e.preventDefault(); sync();
+    const sm = $('#savemsg');
+    if(!d.title){ sm.innerHTML='<span class="msg err">Give the recipe a name.</span>'; $('#f-title').focus(); return; }
+    const btn = $('#save'); btn.disabled = true; sm.innerHTML = '<span class="msg"><span class="spin"></span> Saving…</span>';
+    try{
+      const ci = coverIdx();
+      let photoId = d.photoId || (!photoFile && ci>=0 && shots[ci].assetId) || '';
+      const up = photoFile || (!photoId && ci>=0 && shots[ci].blob) || null;
+      if(up && state.assets){ try{ const a = await state.assets.upload(up); photoId = a.id; }catch(err){ toast('Photo didn’t upload; saved without it'); } }
+      const num = x => { const v = Number(x); return Number.isFinite(v) && v>0 ? v : null; };
+      const nu = d.nutrition && (d.nutrition.calories||d.nutrition.protein||d.nutrition.carbs||d.nutrition.fat) ? d.nutrition : null;
+      const srcUrl = normUrl(d.sourceUrl);
+      const body = { title:d.title, sourceUrl:srcUrl, platform: platform(srcUrl), author:d.author,
+        servings:num(d.servings), prepMinutes:num(d.prepMinutes), cookMinutes:num(d.cookMinutes),
+        ingredients:d.ingredients, steps:d.steps, tags:d.tags, cookbooks:d.cookbooks, notes:d.notes, photoId, nutrition: nu, needsReview: false, inferred: !!d.inferred,
+        addedBy: existing ? (existing.addedBy||state.me||'') : (state.me||''), createdAt: existing ? (existing.createdAt||Date.now()) : Date.now(), updatedAt: Date.now() };
+      const rid = id || newId('r');
+      await bdoc('recipes/'+rid).set(body);
+      if(d._inboxId){ try{ await bdoc('inbox/'+d._inboxId).delete(); }catch{} }
+      draft = null; shots = []; photoFile = null;
+      location.hash = 'r-' + rid; toast(id ? 'Changes saved' : 'Saved to the recipe box');
+    }catch(err){
+      btn.disabled = false;
+      const c = err && err.code;
+      sm.innerHTML = '<span class="msg err">'+esc(c==='invalid_argument' ? 'You don’t have permission to save here. Ask the owner to make you an Editor.' : c==='quota_exceeded' ? 'The recipe box is full. Delete a few old recipes and try again.' : 'Couldn’t save ('+(c||'error')+'). Try again.')+'</span>';
+    }
+  });
+}
+
+boot();
+})();
+</script>
+
+</body></html>
