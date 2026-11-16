@@ -13,8 +13,11 @@
   /* The family key arrives once in the link (?k=...), then lives on this device */
   const url = new URL(location.href);
   const fromLink = url.searchParams.get('k');
-  if(fromLink){ LS.set('rb:key', fromLink); url.searchParams.delete('k'); history.replaceState(null, '', url.pathname + url.search + url.hash); }
+  if(fromLink) LS.set('rb:key', fromLink);
   const KEY = LS.get('rb:key', '');
+  /* Keep the family key in the address, so sharing the page any way (Safari's Share, copying the
+     address bar) always sends a link that works for the person receiving it. */
+  if(KEY && fromLink !== KEY){ url.searchParams.set('k', KEY); history.replaceState(null, '', url.pathname + url.search + url.hash); }
 
   async function rpc(fn, args){
     const headers = { 'Content-Type': 'application/json', apikey: CFG.supabaseKey };
@@ -191,7 +194,7 @@
   function showKeyScreen(){
     if(document.getElementById('keyScreen')) return;
     const d = document.createElement('div'); d.id = 'keyScreen'; d.className = 'keyscreen';
-    d.innerHTML = '<div class="box"><h2>Family Recipe Box</h2><p>This recipe box is private to our family. Open it with the family link you were sent. If you have it, paste it below.</p>'
+    d.innerHTML = '<div class="box"><h2>Family Recipe Box</h2><p>This recipe box is private to our family. Open it with the family link: ask whoever invited you to tap <b>Share</b> inside the recipe box and send you the link it shows. If you have it, paste it below.</p>'
       + '<form id="keyForm"><input id="keyIn" class="inp" placeholder="Paste the family link" autocomplete="off" aria-label="Family link"><button class="btn primary" type="submit">Open</button></form></div>';
     document.body.append(d);
     d.querySelector('#keyForm').onsubmit = e => { e.preventDefault(); const v = d.querySelector('#keyIn').value.trim();

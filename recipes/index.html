@@ -348,6 +348,9 @@ details.ingbox summary{cursor:pointer;font-weight:600}
 .note{margin:0;font-size:.88rem;color:var(--muted);border-left:3px solid var(--butter);padding-left:10px}
 .booklist{list-style:none;margin:0;padding:0;display:grid;gap:6px}
 .booklist li{display:flex;justify-content:space-between;align-items:center;gap:10px;background:var(--sunk);border-radius:10px;padding:6px 6px 6px 12px;font-weight:600}
+.sharepanel{position:fixed;inset:0;z-index:40;background:rgb(0 0 0 / .55);display:grid;place-items:center;padding:16px max(16px,env(safe-area-inset-left,0px))}
+.sharepanel .box{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:18px;max-width:460px;width:100%;display:grid;gap:12px}
+.linkbox{font-family:var(--mono);font-size:.85rem;background:var(--bg);border:1px solid var(--line);border-radius:10px;padding:10px 12px;overflow-wrap:anywhere;user-select:all}
 .suggestbar{display:flex;gap:10px;align-items:center;flex-wrap:wrap;background:var(--sunk);border-radius:12px;padding:10px 12px;font-size:.9rem}
 .suggestbar > span:first-child{flex:1 1 240px}
 .inferbar{background:var(--sunk);border-left:4px solid var(--butter);border-radius:10px;padding:10px 14px;margin-bottom:14px;font-size:.92rem}
@@ -1025,12 +1028,22 @@ $('#addBtn').onclick = () => { location.hash = 'new'; };
 /* Share the family link (website edition) */
 if(window.RecipeBoxWeb && window.RecipeBoxWeb.familyLink){
   const sb = $('#shareBtn'); sb.hidden = false;
-  sb.onclick = async () => {
+  sb.onclick = () => {
     const link = window.RecipeBoxWeb.familyLink();
-    const text = 'Here’s our Family Recipe Box. Open this link to see and add recipes (no account needed):';
-    if(navigator.share){ try{ await navigator.share({ title: 'Family Recipe Box', text, url: link }); return; }catch(e){ if(e && e.name==='AbortError') return; } }
-    try{ await navigator.clipboard.writeText(text + '\n' + link); toast('Family link copied. Paste it into a text or email.'); }
-    catch{ toast('Copy this link: ' + link); }
+    const text = 'Here’s our Family Recipe Box. Open this link to see and add recipes (no account needed):\n' + link;
+    const old = document.getElementById('sharePanel'); if(old) old.remove();
+    const d = document.createElement('div'); d.id = 'sharePanel'; d.className = 'sharepanel'; d.setAttribute('role','dialog'); d.setAttribute('aria-label','Share the family link');
+    d.innerHTML = `<div class="box"><div style="display:flex;align-items:center;gap:8px"><h3 style="margin-right:auto">Share the family link</h3><button class="x" type="button" id="spX" aria-label="Close">×</button></div>
+      <p class="hint" style="margin:0">Send this link to family. Anyone who opens it can see and add recipes. No account needed.</p>
+      <div class="linkbox" id="spLink">${esc(link)}</div>
+      <div class="actions" style="margin-top:0">${navigator.share ? '<button class="btn primary" type="button" id="spSend">Send…</button>' : ''}<button class="btn ${navigator.share ? '' : 'primary'}" type="button" id="spCopy">Copy link</button></div></div>`;
+    document.body.append(d);
+    const close = () => d.remove();
+    d.addEventListener('click', e => { if(e.target === d) close(); });
+    $('#spX').onclick = close;
+    $('#spCopy').onclick = async () => { try{ await navigator.clipboard.writeText(link); $('#spCopy').textContent = 'Copied ✓'; }
+      catch{ const r = document.createRange(); r.selectNodeContents($('#spLink')); const s = getSelection(); s.removeAllRanges(); s.addRange(r); $('#spCopy').textContent = 'Selected: copy it'; } };
+    if($('#spSend')) $('#spSend').onclick = async () => { try{ await navigator.share({ title: 'Family Recipe Box', text }); }catch{} };
   };
 }
 /* Book switcher dropdown */
