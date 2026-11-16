@@ -14,7 +14,10 @@
   const url = new URL(location.href);
   const fromLink = url.searchParams.get('k');
   if(fromLink) LS.set('rb:key', fromLink);
-  const KEY = LS.get('rb:key', '');
+  /* Can this browser keep anything? (Safari's "Block All Cookies", some in-app browsers and
+     privacy modes refuse.) If not, the app still works from the key in the link. */
+  const STORAGE_OK = (() => { try{ localStorage.setItem('rb:test', '1'); localStorage.removeItem('rb:test'); return true; }catch{ return false; } })();
+  const KEY = String(fromLink || LS.get('rb:key', '') || '').trim();
   /* Keep the family key in the address, so sharing the page any way (Safari's Share, copying the
      address bar) always sends a link that works for the person receiving it. */
   if(KEY && fromLink !== KEY){ url.searchParams.set('k', KEY); history.replaceState(null, '', url.pathname + url.search + url.hash); }
@@ -27,7 +30,7 @@
     catch{ throw { code: 'unavailable', message: 'No connection' }; }
     if(!res.ok){
       let body = {}; try{ body = await res.json(); }catch{}
-      if(/bad_key/.test(body.message || '')){ showKeyScreen(); throw { code: 'not_granted', message: 'This link’s key is not valid' }; }
+      if(/bad_key/.test(body.message || '')){ showKeyScreen('bad'); throw { code: 'not_granted', message: 'This link’s key is not valid' }; }
       throw { code: res.status >= 500 ? 'unavailable' : 'invalid_argument', message: body.message || ('HTTP ' + res.status) };
     }
     const t = await res.text(); return t ? JSON.parse(t) : null;
@@ -191,20 +194,28 @@
   };
 
   /* ---------- no key: tell people how to get in ---------- */
-  function showKeyScreen(){
+  function showKeyScreen(why){
     if(document.getElementById('keyScreen')) return;
     const d = document.createElement('div'); d.id = 'keyScreen'; d.className = 'keyscreen';
-    d.innerHTML = '<div class="box"><h2>Family Recipe Box</h2><p>This recipe box is private to our family. Open it with the family link: ask whoever invited you to tap <b>Share</b> inside the recipe box and send you the link it shows. If you have it, paste it below.</p>'
+    const msg = why === 'bad'
+      ? 'This family link isn’t accepted. It may have been cut off when it was sent, or the family link has changed. Ask whoever invited you to tap <b>Share</b> in the recipe box and send the link again.'
+      : 'This recipe box is private to our family. Open it with the family link: ask whoever invited you to tap <b>Share</b> inside the recipe box and send you the link it shows.';
+    d.innerHTML = '<div class="box"><h2>Family Recipe Box</h2><p>' + msg + ' If you have it, paste it below.</p>'
       + '<form id="keyForm"><input id="keyIn" class="inp" placeholder="Paste the family link" autocomplete="off" aria-label="Family link"><button class="btn primary" type="submit">Open</button></form></div>';
     document.body.append(d);
     d.querySelector('#keyForm').onsubmit = e => { e.preventDefault(); const v = d.querySelector('#keyIn').value.trim();
       let k = v; try{ k = new URL(v).searchParams.get('k') || v; }catch{}
-      if(k){ LS.set('rb:key', k); location.reload(); } };
+      if(k){ LS.set('rb:key', k); const u = new URL(location.href); u.searchParams.set('k', k); location.href = u.pathname + u.search; } };
   }
-  if(!KEY) document.addEventListener('DOMContentLoaded', showKeyScreen);
+  if(!KEY) document.addEventListener('DOMContentLoaded', () => showKeyScreen('missing'));
+  /* Browser won't save anything: say so once, and how to keep coming back */
+  if(KEY && !STORAGE_OK) document.addEventListener('DOMContentLoaded', () => setTimeout(() => {
+    const n = document.createElement('div'); n.className = 'storenote'; n.setAttribute('role', 'status');
+    n.innerHTML = 'This browser isn’t saving website data, so it won’t remember you. Bookmark this page, or open the link in Safari or Chrome. <button type="button" aria-label="Dismiss">×</button>';
+    n.querySelector('button').onclick = () => n.remove(); document.body.append(n); }, 600));
   /* first visit on this device: ask for a name so recipes say who added them */
   function askName(){
-    if(me.name || document.getElementById('nameScreen')) return;
+    if(me.name || !STORAGE_OK || document.getElementById('nameScreen')) return;
     const d = document.createElement('div'); d.id = 'nameScreen'; d.className = 'keyscreen';
     d.innerHTML = '<form class="box" id="nameForm"><h2>Welcome to the Family Recipe Box</h2><p>What’s your first name? It shows on the recipes you add.</p>'
       + '<input id="nameIn" class="inp" maxlength="40" autocomplete="given-name" placeholder="e.g. Sarah" aria-label="Your first name"><button class="btn primary" type="submit">Start</button></form>';
