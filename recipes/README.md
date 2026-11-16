@@ -40,4 +40,10 @@ GitHub stops scheduled jobs in repositories with no changes for 60 days; re-enab
 | `config.js` | Supabase project URL and publishable key |
 | `supabase/schema.sql` | Tables and the key-checked functions |
 
-Claude features (reading posts, filling in missing ingredients) are off in this edition; recipes are added by hand.
+## Claude features
+
+Reading posts, filling in recipes from a link and title, categories, nutrition and the grocery list use
+Claude Sonnet 5.5 through the `rb-claude` Edge Function (`supabase/functions/rb-claude/index.ts`). It checks
+the family key, then calls the Anthropic API with the `ANTHROPIC_API_KEY` secret stored in Supabase
+(**Edge Functions → Secrets**). The key never appears in the website. Until the secret is set, the site
+hides Claude's buttons and recipes are added by hand.

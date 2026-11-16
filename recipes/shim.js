@@ -226,7 +226,47 @@
   if(KEY) document.addEventListener('DOMContentLoaded', () => setTimeout(askName, 400));
 
   /* ---------- the same doorway the app used inside Claude ---------- */
+  /* ---------- Claude: reading posts, filling in recipes, categories, grocery lists ----------
+     Calls the rb-claude function in the same Supabase project, which holds the Anthropic key. */
+  const FN = (CFG.supabaseUrl || '').replace(/\/+$/, '') + '/functions/v1/rb-claude';
+  async function callClaude(body){
+    let res;
+    try{ res = await realFetch(FN, { method: 'POST', headers: { 'Content-Type': 'application/json', apikey: CFG.supabaseKey }, body: JSON.stringify({ k: KEY, ...body }) }); }
+    catch{ throw { code: 'unavailable', message: 'No connection' }; }
+    let out = {}; try{ out = await res.json(); }catch{}
+    if(!res.ok) throw { code: out.code || (res.status === 429 ? 'rate_limited' : 'unavailable'), message: out.message || ('HTTP ' + res.status) };
+    return out;
+  }
+  const toPrompt = input => typeof input === 'string' ? input
+    : (Array.isArray(input) ? input.map(m => (m.role === 'assistant' ? 'Earlier answer: ' : '') + m.content).join('\n\n') : String(input || ''));
+  async function toImages(list){
+    const out = [];
+    for(const b of [].concat(list || []).slice(0, 4)){ try{ const du = await shrink(b); const m = du.match(/^data:([^;]+);base64,(.*)$/); if(m) out.push({ media_type: m[1], data: m[2] }); }catch{} }
+    return out;
+  }
+  const sample = async (input, opts = {}) => {
+    const r = await callClaude({ prompt: toPrompt(input), images: await toImages(opts.images) });
+    const text = r.text || '';
+    if(typeof opts.onText === 'function'){ try{ opts.onText({ text, delta: text }); }catch{} }
+    return { text, truncated: !!r.truncated };
+  };
+  sample.json = async (input, opts = {}) => {
+    const { text } = await sample(input, opts);
+    const t = text.trim().replace(/^```(?:json)?\s*/i, '').replace(/```\s*$/, '');
+    try{ return JSON.parse(t); }catch{}
+    const a = t.indexOf('{'), b = t.lastIndexOf('}');
+    if(a >= 0 && b > a){ try{ return JSON.parse(t.slice(a, b + 1)); }catch{} }
+    throw { code: 'invalid_json', message: 'Claude’s answer couldn’t be read', text };
+  };
+  sample.limits = async () => ({ images: { maxCount: 4, maxBytes: 20000000, mediaTypes: ['image/jpeg', 'image/png', 'image/webp', 'image/gif', 'image/heic', 'image/heif'] } });
+  /* Only offer Claude's buttons once the key has been added (the check reads nothing and costs nothing) */
+  let claudeReady = null;
+  const claudeOn = () => claudeReady || (claudeReady = callClaude({ ping: true }).then(() => sample, () => null));
+
   const caps = { db, user, assets };
-  window.claude = Object.freeze({ use: async name => (KEY && CFG.supabaseUrl ? caps[name] || null : null) });
+  window.claude = Object.freeze({ use: async name => {
+    if(!KEY || !CFG.supabaseUrl) return null;
+    if(name === 'sample') return claudeOn();
+    return caps[name] || null; } });
   window.RecipeBoxWeb = { familyLink: () => location.origin + location.pathname.replace(/index\.html$/, '') + '?k=' + encodeURIComponent(KEY) };
 })();

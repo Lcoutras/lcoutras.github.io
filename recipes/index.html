@@ -14,7 +14,7 @@
 <link rel="icon" href="food-icon.svg" type="image/svg+xml">
 <link rel="icon" type="image/png" sizes="180x180" href="food-icon-180.png">
 <script src="config.js?v=3"></script>
-<script src="shim.js?v=3"></script>
+<script src="shim.js?v=4"></script>
 <style>
 [hidden]{display:none!important}
 :root{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
@@ -1270,7 +1270,12 @@ function renderDetail(id){
   };
 }
 function claudeErr(e){ const c = e && e.code;
-  return c==='not_granted' ? 'Claude wasn’t allowed to help here.' : c==='rate_limited' ? 'Claude is busy. Wait a minute and try again.' : 'Claude couldn’t do that ('+(c||'error')+'). Try again.'; }
+  return c==='not_granted' ? 'Claude wasn’t allowed to help here.' : c==='rate_limited' ? 'Claude is busy. Wait a minute and try again.'
+    : c==='not_configured' ? 'Claude isn’t switched on yet. The Anthropic API key needs adding in Supabase.'
+    : c==='no_credit' ? 'Claude is out of credit. Add credit at console.anthropic.com, then try again.'
+    : c==='refused' ? 'Claude declined that one. Try rewording it, or fill it in by hand.'
+    : c==='invalid_json' ? 'Claude’s answer came back garbled. Try again.'
+    : 'Claude couldn’t do that ('+(c||'error')+'). Try again.'; }
 async function estimateNutrition(r, btn){
   btn.disabled = true; const old = btn.innerHTML; btn.innerHTML = '<span class="spin"></span> Estimating…';
   try{
