@@ -261,7 +261,9 @@
   sample.limits = async () => ({ images: { maxCount: 4, maxBytes: 20000000, mediaTypes: ['image/jpeg', 'image/png', 'image/webp', 'image/gif', 'image/heic', 'image/heif'] } });
   /* Only offer Claude's buttons once the key has been added (the check reads nothing and costs nothing) */
   let claudeReady = null;
-  const claudeOn = () => claudeReady || (claudeReady = callClaude({ ping: true }).then(() => sample, () => null));
+  const claudeOn = () => claudeReady || (claudeReady = callClaude({ ping: true })
+    .then(() => { window.RecipeBoxWeb.claudeStatus = 'on'; return sample; },
+          e => { window.RecipeBoxWeb.claudeStatus = (e && e.code) || 'unavailable'; return null; }));
 
   const caps = { db, user, assets };
   window.claude = Object.freeze({ use: async name => {

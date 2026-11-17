@@ -14,7 +14,7 @@
 <link rel="icon" href="food-icon.svg" type="image/svg+xml">
 <link rel="icon" type="image/png" sizes="180x180" href="food-icon-180.png">
 <script src="config.js?v=3"></script>
-<script src="shim.js?v=5"></script>
+<script src="shim.js?v=6"></script>
 <style>
 [hidden]{display:none!important}
 :root{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
@@ -1775,6 +1775,9 @@ function renderEditor(id){
   const canClaude = !!state.sample;
   const books = [...new Set([...allBooks(), ...d.cookbooks])].sort((a,b)=>a.localeCompare(b));
   const mode = id ? 'edit' : (canClaude ? (d._mode || 'choose') : 'manual');
+  /* Website edition: say plainly when Claude is off, instead of quietly hiding its buttons */
+  const cs = window.RecipeBoxWeb && window.RecipeBoxWeb.claudeStatus;
+  const claudeOffNote = (!canClaude && cs && cs !== 'on') ? `<div class="helpbox"><b>Claude is switched off right now,</b> so recipes won’t fill in from links. ${cs==='not_configured' ? 'The Anthropic API key hasn’t been added in Supabase yet (Edge Functions → Secrets → <code>ANTHROPIC_API_KEY</code>).' : cs==='no_credit' ? 'The Anthropic account is out of credit.' : 'Claude couldn’t be reached. Tap Refresh and try again.'} You can still type the recipe in below.</div>` : '';
   if(mode==='choose'){
     view.innerHTML = `<div class="editor">
       <a class="btn ghost back" href="#" style="justify-self:start">← Cancel</a>
@@ -1791,6 +1794,7 @@ function renderEditor(id){
   view.innerHTML = `
   <form class="editor" id="form" novalidate>
     <a class="btn ghost back" href="${id?'#r-'+esc(id):'#'}" style="justify-self:start">← Cancel</a>
+    ${claudeOffNote}
     <div style="display:flex;gap:10px;align-items:baseline;flex-wrap:wrap"><h2 style="font-size:1.9rem;margin-right:auto">${id?'Edit recipe':mode==='link'?'Add from a link':'Add a recipe'}</h2>
       ${!id && canClaude ? `<button class="btn ghost small" type="button" id="switchMode">${mode==='link'?'Type it in myself instead':'Use a link instead'}</button>` : ''}</div>
     ${mode==='link' ? `<section class="box claude-box">
