@@ -554,6 +554,12 @@ ol.method li::before{background:var(--accent);color:var(--accent-ink);font-famil
   .card .badge{display:none}
   .card .heart{width:30px;height:30px;font-size:16px;right:8px;top:8px}
 }
+
+/* recipe page: source, author and "added by" sit together and wrap on phones */
+.meta.dmeta{justify-content:flex-start;flex-wrap:wrap;gap:4px 10px;margin:8px 0}
+.mainwrap{min-width:0;overflow-x:clip}
+#view{min-width:0;max-width:100%}
+.inferbar,.sourcelink{max-width:100%;box-sizing:border-box;overflow-wrap:anywhere}
 </style>
 
 <div class="app">
@@ -1428,7 +1434,7 @@ function renderDetail(id){
       ${!imgSrc(r) && state.canWrite && state.assets ? `<div class="phototools"><a class="btn small" href="${esc(googleImg(r.title))}" target="_blank" rel="noopener">Find a photo on Google ↗</a><label class="btn small" for="addPhoto">Choose a file</label><input id="addPhoto" type="file" accept="image/*" hidden>${pasteBoxHTML('detailPaste')}</div>` : ''}</div>
       <div>
         <h2>${esc(r.title||'Untitled recipe')}</h2>
-        <div class="meta">${r.platform?`<span class="src">${esc(r.platform)}</span>`:''}${r.author?`<span>by ${esc(r.author)}</span>`:''}${r.addedBy?`<span>· added by ${esc(who(r.addedBy))}</span>`:''}</div>
+        <div class="meta dmeta">${r.platform?`<span class="src">${esc(r.platform)}</span>`:''}${r.author?`<span>by ${esc(r.author)}</span>`:''}${r.addedBy?`<span>· added by ${esc(who(r.addedBy))}</span>`:''}</div>
         ${url ? `<div class="sourcelink"><span class="lbl">Original post</span><a href="${esc(url)}" target="_blank" rel="noopener" id="srcA">${esc(url)}</a><button class="btn small" type="button" id="copySrc">Copy link</button></div>` : (r.sourceUrl ? `<div class="sourcelink"><span class="lbl">Source</span><span>${esc(r.sourceUrl)}</span></div>` : '')}
         <div class="facts">
           <div class="fact"><small>Prep</small><b>${mins(r.prepMinutes)}</b></div>
@@ -2174,11 +2180,18 @@ function renderEditor(id){
     const OW = 1200, OH = 900, k = OW / L.W;
     const cv = document.createElement('canvas'); cv.width = OW; cv.height = OH; const ctx = cv.getContext('2d');
     if(L.whole){
+      // Soft background: shrink the photo to a few pixels, then stretch it back up.
+      // Works in every browser (iPhone Safari ignores canvas blur filters).
       const s2 = Math.max(OW/L.nw, OH/L.nh);
-      try{ ctx.filter = 'blur(28px) brightness(0.6)'; }catch{}
-      ctx.drawImage(im, (OW - L.nw*s2)/2, (OH - L.nh*s2)/2, L.nw*s2, L.nh*s2);
-      try{ ctx.filter = 'none'; }catch{}
-      if(!('filter' in ctx)){ ctx.fillStyle = 'rgba(18,22,18,.55)'; ctx.fillRect(0, 0, OW, OH); }
+      const tiny = document.createElement('canvas'); tiny.width = 24; tiny.height = 18;
+      const tc = tiny.getContext('2d'); tc.imageSmoothingEnabled = true; tc.imageSmoothingQuality = 'high';
+      tc.drawImage(im, (24 - L.nw*s2*24/OW)/2, (18 - L.nh*s2*18/OH)/2, L.nw*s2*24/OW, L.nh*s2*18/OH);
+      const mid = document.createElement('canvas'); mid.width = 96; mid.height = 72;
+      const mc = mid.getContext('2d'); mc.imageSmoothingEnabled = true; mc.imageSmoothingQuality = 'high';
+      mc.drawImage(tiny, 0, 0, 96, 72);
+      ctx.imageSmoothingEnabled = true; ctx.imageSmoothingQuality = 'high';
+      ctx.drawImage(mid, -OW*0.04, -OH*0.04, OW*1.08, OH*1.08);
+      ctx.fillStyle = 'rgba(10,14,22,.45)'; ctx.fillRect(0, 0, OW, OH);
     }
     ctx.drawImage(im, L.left*k, L.top*k, L.nw*L.s*k, L.nh*L.s*k);
     return await new Promise(res => cv.toBlob(res, 'image/jpeg', 0.88));
