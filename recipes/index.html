@@ -132,8 +132,8 @@ header.top{position:sticky;top:env(safe-area-inset-top,0px);z-index:5;background
 .pl-results{list-style:none;margin:-4px 0 0;padding:4px;border:1px solid var(--line);border-radius:10px;background:var(--bg);display:grid;gap:2px}
 .pl-results button{display:flex;gap:8px;align-items:center;width:100%;border:0;background:transparent;padding:5px 6px;border-radius:7px;cursor:pointer;text-align:left;font-weight:600;font-size:.88rem}
 .pl-results button:hover{background:var(--sunk)}
-.pl-mini{width:34px;height:28px;border-radius:5px;overflow:hidden;flex:none;display:block}
-.pl-mini img,.pl-mini .cover{width:100%;height:100%;object-fit:cover}
+.pl-mini{position:relative;width:34px;height:28px;border-radius:5px;overflow:hidden;flex:none;display:block}
+.pl-mini img,.pl-mini .cover{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
 .pl-mini .cover svg,.pl-mini .cover span,.pl-thumb .cover span{display:none}
 .pl-pick{background:var(--sunk);border:1px solid var(--accent);border-radius:10px;padding:8px 10px;font-size:.85rem;display:flex;gap:6px;align-items:center}
 .pl-pick b{flex:1;min-width:0}
@@ -148,7 +148,7 @@ header.top{position:sticky;top:env(safe-area-inset-top,0px);z-index:5;background
 .pl-slots{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
 .pl-thumb{position:relative;width:58px;height:48px;border-radius:8px;overflow:hidden;border:1px solid var(--line);cursor:grab}
 .pl-thumb a{display:block;width:100%;height:100%}
-.pl-thumb img,.pl-thumb .cover{width:100%;height:100%;object-fit:cover}
+.pl-thumb img,.pl-thumb .cover{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
 .pl-thumb .cover svg{width:60%}
 .pl-rm{position:absolute;top:2px;right:2px;width:18px;height:18px;border:0;border-radius:50%;background:var(--ink);color:var(--bg);font-size:.75rem;line-height:1;cursor:pointer;opacity:0}
 .pl-thumb:hover .pl-rm,.pl-thumb:focus-within .pl-rm{opacity:1}
@@ -162,8 +162,9 @@ header.top{position:sticky;top:env(safe-area-inset-top,0px);z-index:5;background
 @media (max-width:900px){.planlayout{grid-template-columns:minmax(0,1fr)}.planner{position:static;max-height:none;order:-1}}
 .card{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);overflow:hidden;cursor:pointer;text-align:left;padding:0;display:flex;flex-direction:column;transition:transform .15s ease,border-color .15s ease}
 .card:hover{transform:translateY(-2px);border-color:var(--accent)}
-.thumb{aspect-ratio:4/3;width:100%;max-width:100%;background:var(--sunk);display:grid;place-items:center;overflow:hidden}
-.thumb img{width:100%;height:100%;object-fit:cover;display:block}
+.thumb{position:relative;aspect-ratio:4/3;width:100%;max-width:100%;background:var(--sunk);display:grid;place-items:center;overflow:hidden}
+/* Photos are pinned to their frame's edges: Safari sizes a photo by its own shape otherwise, ignoring the frame */
+.thumb img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;display:block}
 .cover{--h:140;width:100%;height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;padding:14px;text-align:center;color:hsl(var(--h) 45% 96%);background:radial-gradient(circle at 30% 25%,hsl(calc(var(--h) + 25) 55% 48%),hsl(var(--h) 50% 30%) 70%)}
 .cover svg{width:44%;max-width:110px;height:auto}
 .cover span{font-family:var(--display);font-weight:700;font-size:1rem;line-height:1.15;text-wrap:balance;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}
@@ -404,8 +405,8 @@ details.ingbox summary{cursor:pointer;font-weight:600}
 .photo-prev.movable.dragging{cursor:grabbing}
 .photo-prev.movable:focus-visible{outline:3px solid var(--butter)}
 .photo-prev img{pointer-events:none;user-select:none;-webkit-user-drag:none}
-.photo-prev{width:100%;aspect-ratio:4/3;border-radius:10px;overflow:hidden;background:var(--sunk);display:grid;place-items:center;color:var(--muted);font-size:.8rem}
-.photo-prev img{width:100%;height:100%;object-fit:cover}
+.photo-prev{position:relative;width:100%;aspect-ratio:4/3;border-radius:10px;overflow:hidden;background:var(--sunk);display:grid;place-items:center;color:var(--muted);font-size:.8rem}
+.photo-prev img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
 .bookpick{display:flex;gap:6px;flex-wrap:wrap;align-items:center}
 .spin{width:14px;height:14px;border:2px solid currentColor;border-right-color:transparent;border-radius:50%;animation:sp .8s linear infinite;display:inline-block;vertical-align:-2px}
 @keyframes sp{to{transform:rotate(360deg)}}
