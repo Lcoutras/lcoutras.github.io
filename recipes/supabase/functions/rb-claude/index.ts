@@ -102,25 +102,44 @@ Deno.serve(async (req: Request) => {
   const tools = body.web
     ? [{ type: "web_search_20260209", name: "web_search", max_uses: 5 }, { type: "web_fetch_20260209", name: "web_fetch", max_uses: 4 }]
     : undefined;
+  // For lookups, research is the job: without this, Claude sometimes answers from memory.
+  const system = tools
+    ? "You are the recipe researcher for a family recipe book. Before you write any recipe you always use web_search to find real published recipes for the dish, and web_fetch to read the best one or two pages. Never answer from memory alone. List the pages you used in basedOn."
+    : undefined;
   const client = new Anthropic({ apiKey });
   try {
     const messages: Anthropic.Beta.BetaMessageParam[] = [{ role: "user", content }];
     let response;
-    // The server-side search loop can pause; resend the turn so it resumes (at most a few times).
-    for (let round = 0; round < 4; round++) {
+    let searched = 0, fetched = 0, nudged = false;
+    for (let round = 0; round < 6; round++) {
       response = await client.beta.messages.create({
         model: MODEL,
         max_tokens: 16000,
         output_config: { effort: "medium" },
         betas: ["server-side-fallback-2026-07-01"],
         fallbacks: "default",
+        ...(system ? { system } : {}),
         ...(tools ? { tools } : {}),
         messages,
       } as Anthropic.Beta.MessageCreateParamsNonStreaming);
-      if (response.stop_reason !== "pause_turn") break;
-      if (messages.length > 1) messages.pop();
-      messages.push({ role: "assistant", content: response.content as Anthropic.Beta.BetaContentBlockParam[] });
+      const use = (response.usage as { server_tool_use?: { web_search_requests?: number; web_fetch_requests?: number } })?.server_tool_use;
+      searched += use?.web_search_requests || 0; fetched += use?.web_fetch_requests || 0;
+      // The server-side search loop can pause; resend the turn so it resumes.
+      if (response.stop_reason === "pause_turn") {
+        if (messages[messages.length - 1].role === "assistant") messages.pop();
+        messages.push({ role: "assistant", content: response.content as Anthropic.Beta.BetaContentBlockParam[] });
+        continue;
+      }
+      // Answered without researching: send it back once to search before we accept the answer.
+      if (tools && !searched && !nudged && response.stop_reason === "end_turn") {
+        nudged = true;
+        messages.push({ role: "assistant", content: response.content as Anthropic.Beta.BetaContentBlockParam[] });
+        messages.push({ role: "user", content: "You answered without searching. Use web_search now to find two or three real published recipes for this dish (and the creator's own recipe if it exists), read the best one with web_fetch, then send the complete JSON again based on what you found, with basedOn listing those pages." });
+        continue;
+      }
+      break;
     }
+    console.log(JSON.stringify({ web: !!tools, searched, fetched, nudged, stop: response?.stop_reason }));
     if (!response) return reply(500, { code: "unavailable", message: "No answer" });
     if (response.stop_reason === "refusal") {
       return reply(422, { code: "refused", message: "Claude declined this request." });
@@ -130,8 +149,7 @@ Deno.serve(async (req: Request) => {
     let last = -1;
     blocks.forEach((b, i) => { if (b.type === "server_tool_use" || b.type.endsWith("_tool_result")) last = i; });
     const text = blocks.slice(last + 1).filter((b) => b.type === "text").map((b) => b.text || "").join("");
-    const searches = (response.usage as { server_tool_use?: { web_search_requests?: number; web_fetch_requests?: number } })?.server_tool_use;
-    return reply(200, { text, truncated: response.stop_reason === "max_tokens", searches: searches?.web_search_requests || 0, fetches: searches?.web_fetch_requests || 0 });
+    return reply(200, { text, truncated: response.stop_reason === "max_tokens", searches: searched, fetches: fetched });
   } catch (err) {
     if (err instanceof Anthropic.RateLimitError) return reply(429, { code: "rate_limited", message: "Claude is busy. Try again in a minute." });
     if (err instanceof Anthropic.AuthenticationError) return reply(503, { code: "not_configured", message: "The Anthropic API key was not accepted." });

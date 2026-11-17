@@ -1809,7 +1809,8 @@ async function videoFrames(file, count){
 let draft = null, shots = [], photoFile = null;
 /* Photos from the recipe pages Claude used (website edition) */
 const canFindPhotos = () => !!(window.RecipeBoxWeb && window.RecipeBoxWeb.findPhotos && state.sample);
-const photoPages = r => [...(r.basedOn || []), r.sourceUrl].map(u => safeUrl(normUrl(u))).filter(Boolean);
+/* the post's own preview picture first (the creator's dish), then the recipe pages Claude used */
+const photoPages = r => [r.sourceUrl, ...(r.basedOn || [])].map(u => safeUrl(normUrl(u))).filter(Boolean);
 async function autoPhotoFor(id){
   if(!canFindPhotos() || !draft) return;
   const d = draft;
