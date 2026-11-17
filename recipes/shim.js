@@ -275,4 +275,10 @@
   window.RecipeBoxWeb = { familyLink: () => location.origin + location.pathname.replace(/index\.html$/, '') + '?k=' + encodeURIComponent(KEY) };
   /* Ask again (after the key is added, without reloading the page) */
   window.RecipeBoxWeb.recheckClaude = () => { claudeReady = null; return claudeOn(); };
+  /* The main photo from recipe pages (the server opens the pages; this needs no Anthropic credit) */
+  window.RecipeBoxWeb.findPhotos = async urls => {
+    const r = await callClaude({ photos: (urls || []).filter(Boolean).slice(0, 5) });
+    return (r.photos || []).map(p => { const bin = atob(p.data); const a = new Uint8Array(bin.length); for(let i = 0; i < bin.length; i++) a[i] = bin.charCodeAt(i);
+      const blob = new Blob([a], { type: p.media_type }); return { blob, url: URL.createObjectURL(blob), site: p.site, page: p.page }; });
+  };
 })();

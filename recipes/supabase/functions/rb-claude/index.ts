@@ -25,14 +25,63 @@ async function keyOk(k: string): Promise<boolean> {
   return res.ok;
 }
 
+// ---------- photos: the main picture from recipe pages Claude used ----------
+const safePage = (u: string) => {
+  try {
+    const x = new URL(u);
+    if (!/^https?:$/.test(x.protocol)) return null;
+    const h = x.hostname.toLowerCase();
+    if (h === "localhost" || h.endsWith(".local") || h.endsWith(".internal") || /^[\d.]+$/.test(h) || h.includes(":")) return null;
+    return x;
+  } catch { return null; }
+};
+async function fetchLimited(u: URL, maxBytes: number, accept: string) {
+  const ctl = new AbortController(); const t = setTimeout(() => ctl.abort(), 7000);
+  try {
+    const res = await fetch(u, { signal: ctl.signal, redirect: "follow", headers: { "User-Agent": "Mozilla/5.0 (compatible; FamilyRecipeBox/1.0)", Accept: accept } });
+    if (!res.ok || !res.body) return null;
+    const reader = res.body.getReader(); const chunks: Uint8Array[] = []; let n = 0;
+    while (true) { const { done, value } = await reader.read(); if (done) break; n += value.length; if (n > maxBytes) { ctl.abort(); return null; } chunks.push(value); }
+    const out = new Uint8Array(n); let o = 0; for (const c of chunks) { out.set(c, o); o += c.length; }
+    return { bytes: out, type: (res.headers.get("content-type") || "").split(";")[0].trim().toLowerCase(), url: res.url };
+  } catch { return null; } finally { clearTimeout(t); }
+}
+function imageFromHtml(html: string, base: string): string | null {
+  const meta = (attr: string) => {
+    const re = new RegExp(`<meta[^>]+(?:property|name)=["']${attr}["'][^>]*>`, "i"); const m = html.match(re);
+    const c = m && m[0].match(/content=["']([^"']+)["']/i); return c ? c[1] : null; };
+  let img = meta("og:image") || meta("og:image:url") || meta("twitter:image") || meta("twitter:image:src");
+  if (!img) { // recipe pages often put the photo in their structured recipe data
+    const ld = html.match(/"image"\s*:\s*(?:\[\s*)?(?:\{[^}]*?"url"\s*:\s*)?"([^"]+\.(?:jpe?g|png|webp)[^"]*)"/i); if (ld) img = ld[1]; }
+  if (!img) return null;
+  try { return new URL(img.replace(/&amp;/g, "&"), base).toString(); } catch { return null; }
+}
+const b64 = (bytes: Uint8Array) => { let s = ""; for (let i = 0; i < bytes.length; i += 0x8000) s += String.fromCharCode(...bytes.subarray(i, i + 0x8000)); return btoa(s); };
+async function findPhotos(urls: string[]) {
+  const pages = [...new Set(urls)].map(safePage).filter((x): x is URL => !!x).slice(0, 5);
+  const found = await Promise.all(pages.map(async (page) => {
+    const html = await fetchLimited(page, 2_000_000, "text/html");
+    if (!html || !/html/.test(html.type)) return null;
+    const imgUrl = imageFromHtml(new TextDecoder().decode(html.bytes), html.url || page.toString());
+    const iu = imgUrl ? safePage(imgUrl) : null; if (!iu) return null;
+    const img = await fetchLimited(iu, 3_000_000, "image/*");
+    if (!img || !/^image\/(jpeg|png|webp|gif)$/.test(img.type) || img.bytes.length < 5000) return null;
+    return { page: page.toString(), site: page.hostname.replace(/^www\./, ""), media_type: img.type, data: b64(img.bytes) };
+  }));
+  const seen = new Set<string>();
+  return found.filter((f) => f && !seen.has(f.data.slice(0, 200)) && seen.add(f.data.slice(0, 200))).slice(0, 4);
+}
+
 Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: CORS });
   if (req.method !== "POST") return reply(405, { code: "invalid_argument", message: "POST only" });
 
-  let body: { k?: string; prompt?: string; images?: { media_type: string; data: string }[]; ping?: boolean; web?: boolean };
+  let body: { k?: string; prompt?: string; images?: { media_type: string; data: string }[]; ping?: boolean; web?: boolean; photos?: string[] };
   try { body = await req.json(); } catch { return reply(400, { code: "invalid_argument", message: "Bad JSON" }); }
 
   if (!(await keyOk(String(body.k || "")))) return reply(401, { code: "not_granted", message: "Family key not accepted" });
+
+  if (Array.isArray(body.photos)) return reply(200, { photos: await findPhotos(body.photos.map(String)) });
 
   const apiKey = Deno.env.get("ANTHROPIC_API_KEY");
   if (!apiKey) return reply(503, { code: "not_configured", message: "Claude isn't switched on yet: the Anthropic API key hasn't been added." });

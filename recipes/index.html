@@ -14,7 +14,7 @@
 <link rel="icon" href="food-icon.svg" type="image/svg+xml">
 <link rel="icon" type="image/png" sizes="180x180" href="food-icon-180.png">
 <script src="config.js?v=3"></script>
-<script src="shim.js?v=8"></script>
+<script src="shim.js?v=9"></script>
 <style>
 [hidden]{display:none!important}
 :root{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
@@ -399,6 +399,24 @@ details.ingbox summary{cursor:pointer;font-weight:600}
 .photo-prev.whole{cursor:default}
 .fithint{color:var(--muted);font-size:.8rem}
 .framebar .seg button{font-size:.8rem}
+.picks{display:flex;gap:8px;flex-wrap:wrap;width:100%}
+.pick{border:2px solid var(--line);background:var(--bg);border-radius:10px;padding:3px;cursor:pointer;display:grid;gap:2px;width:96px;color:var(--muted);font-size:.7rem}
+.pick img{width:100%;aspect-ratio:4/3;object-fit:cover;border-radius:7px;display:block}
+.pick span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.pick.on{border-color:var(--accent);color:var(--accent)}
+.credit{color:var(--muted);font-size:.78rem}
+.cropbox .cropimg{position:absolute;max-width:none;object-fit:fill;inset:auto;width:auto;height:auto}
+.cropbox.whole{background:var(--bg)}
+.cropgrid{position:absolute;inset:0;pointer-events:none;border:2px solid rgb(255 255 255 / .85);border-radius:10px;box-shadow:inset 0 0 0 1px rgb(0 0 0 / .35)}
+.cropgrid i{position:absolute;background:rgb(255 255 255 / .55);box-shadow:0 0 0 .5px rgb(0 0 0 / .3)}
+.cropgrid i:nth-child(1){left:33.333%;top:0;bottom:0;width:1px}
+.cropgrid i:nth-child(2){left:66.666%;top:0;bottom:0;width:1px}
+.cropgrid i:nth-child(3){top:33.333%;left:0;right:0;height:1px}
+.cropgrid i:nth-child(4){top:66.666%;left:0;right:0;height:1px}
+.cropbox.whole .cropgrid i{display:none}
+.zoom{display:flex;align-items:center;gap:6px;font-size:.8rem;color:var(--muted);flex:1 1 120px}
+.zoom input{flex:1;accent-color:var(--accent);min-width:0}
+.framebar{flex-wrap:wrap}
 .photo-frame{display:grid;gap:6px;width:min(320px,100%)}
 .framebar{display:flex;gap:8px;align-items:center;justify-content:space-between;font-size:.8rem;color:var(--muted)}
 .photo-prev.movable{cursor:grab;touch-action:none;outline:1px solid var(--line)}
@@ -1204,6 +1222,7 @@ function renderDetail(id){
     ${r.needsReview && state.canWrite ? `<div class="reviewbar" id="reviewbar"><span>Claude imported this one. Give it a quick look.</span><a class="btn small" href="#edit-${esc(r.id)}">Edit</a><button class="btn primary small" type="button" id="okBtn">Looks good</button></div>` : ''}
     <section class="hero">
       <div class="herophoto"><div class="thumb">${imgSrc(r)?`<img src="${esc(imgSrc(r))}" alt="${esc(r.title)}"${posStyle(r)}>`:coverHTML(r, true)}</div>
+      ${imgSrc(r) && r.photoCredit ? `<small class="credit">Photo: ${esc(r.photoCredit)}</small>` : ''}
       ${!imgSrc(r) && state.canWrite && state.assets ? `<div class="phototools"><a class="btn small" href="${esc(googleImg(r.title))}" target="_blank" rel="noopener">Find a photo on Google ↗</a><label class="btn small" for="addPhoto">Choose a file</label><input id="addPhoto" type="file" accept="image/*" hidden>${pasteBoxHTML('detailPaste')}</div>` : ''}</div>
       <div>
         <h2>${esc(r.title||'Untitled recipe')}</h2>
@@ -1270,6 +1289,9 @@ function renderDetail(id){
       await bdoc('recipes/'+id).update({ basedOn: d.basedOn || [], title:d.title, servings:Number(d.servings)||null, prepMinutes:Number(d.prepMinutes)||null, cookMinutes:Number(d.cookMinutes)||null,
         ingredients:d.ingredients, steps:d.steps, tags:d.tags||[], notes:d.notes||'', nutrition:d.nutrition||null, inferred:true, updatedAt:Date.now() });
       toast('Filled in from similar recipes');
+      if(!r.photoId && canFindPhotos() && state.assets){ try{
+        const list = await window.RecipeBoxWeb.findPhotos(photoPages({ ...r, basedOn: d.basedOn }));
+        if(list.length){ const a = await state.assets.upload(list[0].blob); await bdoc('recipes/'+id).update({ photoId: a.id, photoCredit: list[0].site, photoPos: null, photoFit: null }); toast('Added a photo from ' + list[0].site); } }catch{} }
     }catch(e){ fm.disabled=false; $('#fillmsg').innerHTML = '<span class="msg err">'+esc(claudeErr(e))+'</span>'; } };
   const cs = $('#copySrc'); if(cs) cs.onclick = () => { const done = () => { cs.textContent = 'Copied ✓'; setTimeout(()=>{ cs.textContent='Copy link'; }, 1800); };
     try{ navigator.clipboard.writeText(url).then(done, () => { const sel = getSelection(), rg = document.createRange(); rg.selectNodeContents($('#srcA')); sel.removeAllRanges(); sel.addRange(rg); cs.textContent = 'Selected, copy it'; }); }
@@ -1785,6 +1807,22 @@ async function videoFrames(file, count){
 
 /* ---------- editor ---------- */
 let draft = null, shots = [], photoFile = null;
+/* Photos from the recipe pages Claude used (website edition) */
+const canFindPhotos = () => !!(window.RecipeBoxWeb && window.RecipeBoxWeb.findPhotos && state.sample);
+const photoPages = r => [...(r.basedOn || []), r.sourceUrl].map(u => safeUrl(normUrl(u))).filter(Boolean);
+async function autoPhotoFor(id){
+  if(!canFindPhotos() || !draft) return;
+  const d = draft;
+  if(photoFile || d.photoId || (shots.length && d._cover !== -1) || !photoPages(d).length) return;
+  d._photoBusy = true; const n = $('#photoNote'); if(n) n.textContent = 'Looking for a photo on the recipe pages…';
+  try{
+    const list = await window.RecipeBoxWeb.findPhotos(photoPages(d));
+    if(draft !== d) return;
+    d._photoPicks = list;
+    if(list.length && !photoFile && !d.photoId){ photoFile = list[0].blob; d.photoCredit = list[0].site; d._crop = null; d._cropDirty = false; }
+  }catch{} finally{ d._photoBusy = false; }
+  if(draft === d && route().name === 'edit') renderEditor(id);
+}
 function renderEditor(id){
   if(!state.canWrite){ view.innerHTML = '<div class="empty"><h2>View only</h2><p>You’re a Viewer in this book. Ask its Owner or an Admin to make you a Contributor so you can add recipes.</p><a class="btn" href="#">Back</a></div>'; return; }
   const existing = id ? byId(id) : null;
@@ -1859,10 +1897,12 @@ function renderEditor(id){
         </div></div>
       <div class="field"><label for="f-notes">Notes</label><textarea id="f-notes" style="min-height:80px" placeholder="Swaps, tips, what we changed">${esc(d.notes)}</textarea></div>
       ${state.assets ? `<div class="field"><label for="f-photo">Photo</label>
-        <div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap"><div class="photo-frame"><div class="photo-prev" id="pprev" tabindex="-1" aria-label="Photo position. Drag, or use the arrow keys, to choose what shows on the recipe card."></div>
-          <div class="framebar" id="frameBar" hidden><span class="seg" role="group" aria-label="How the photo fits"><button type="button" id="fitFill">Fill the card</button><button type="button" id="fitWhole">Whole photo</button></span><button class="btn small" type="button" id="centerBtn">Center</button></div>
-          <small id="fitHint" class="fithint"></small></div>
-        <div class="phototools" style="flex:1 1 260px"><a class="btn small" id="gImg" href="${esc(googleImg(d.title || d._dish))}" target="_blank" rel="noopener">Find a photo on Google ↗</a><input id="f-photo" type="file" accept="image/*">${pasteBoxHTML('editPaste')}</div></div>
+        <div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap"><div class="photo-frame"><div class="photo-prev cropbox" id="pprev" tabindex="-1" aria-label="Photo crop. Drag to move, pinch or use the slider to zoom. Arrow keys move, plus and minus zoom."></div>
+          <div class="framebar" id="frameBar" hidden><span class="seg" role="group" aria-label="How the photo fits"><button type="button" id="fitFill">Fill</button><button type="button" id="fitWhole">Whole photo</button></span>
+            <label class="zoom" id="zoomWrap"><span>Zoom</span><input type="range" id="zoomIn" min="1" max="4" step="0.01" value="1" aria-label="Zoom"></label><button class="btn small" type="button" id="centerBtn">Reset</button></div>
+          <small id="fitHint" class="fithint"></small><small id="photoCredit" class="fithint"></small></div>
+        <div class="phototools" style="flex:1 1 260px"><a class="btn small" id="gImg" href="${esc(googleImg(d.title || d._dish))}" target="_blank" rel="noopener">Find a photo on Google ↗</a>${canFindPhotos() && photoPages(d).length ? `<button class="btn small" type="button" id="findPhoto" ${d._photoBusy?'disabled':''}>${d._photoBusy ? 'Looking…' : 'Photo from the recipe'}</button>` : ''}<input id="f-photo" type="file" accept="image/*">${pasteBoxHTML('editPaste')}
+          ${(d._photoPicks||[]).length ? `<div class="picks" role="group" aria-label="Photos found on the recipe pages">${d._photoPicks.map((pk,i) => `<button type="button" class="pick${photoFile===pk.blob?' on':''}" data-pick="${i}" title="From ${esc(pk.site)}"><img src="${esc(pk.url)}" alt="Photo from ${esc(pk.site)}"><span>${esc(pk.site)}</span></button>`).join('')}</div>` : ''}</div></div>
         <small id="photoNote"></small></div>` : ''}
     </section>
     <div class="savebar" ${showForm?'':'hidden'}><span id="savemsg" style="margin-right:auto;align-self:center"></span><a class="btn" href="${id?'#r-'+esc(id):'#'}">Cancel</a><button class="btn primary" type="submit" id="save">${id?'Save changes':'Save to recipe box'}</button></div>
@@ -1886,36 +1926,81 @@ function renderEditor(id){
     else if(d.photoId){ src = '/_blob/'+d.photoId; note = 'Choose a file to replace it.'; }
     else if(coverIdx() >= 0){ src = shots[coverIdx()].url; note = 'Using '+(shots[coverIdx()].video?'a still from your video':'your screenshot')+'. Tap a different image above to use that one instead, or choose a file.'; }
     else { p.innerHTML = coverHTML(d); note = shots.length ? 'None of the images show the finished dish, so it gets this cover. Tap an image above to use it anyway, or choose a file.' : 'No photo yet, so it gets this cover. Choose a file to add one.'; }
-    if(src){ const im=document.createElement('img'); im.src=src; im.alt=''; im.draggable = false; p.append(im); applyPos(); }
+    cropImg = null; cropLayout = null;
+    if(src){ const im=document.createElement('img'); im.alt=''; im.draggable = false; im.className = 'cropimg';
+      im.onload = () => { cropImg = im; layoutCrop(); }; im.src=src; p.append(im);
+      const g = document.createElement('div'); g.className = 'cropgrid'; g.setAttribute('aria-hidden','true'); g.innerHTML = '<i></i><i></i><i></i><i></i>'; p.append(g); }
+    const pc = $('#photoCredit'); if(pc) pc.textContent = d.photoCredit && src ? 'Photo from ' + d.photoCredit + '.' : '';
     p.classList.toggle('movable', !!src); p.tabIndex = src ? 0 : -1;
     const fb = $('#frameBar'); if(fb) fb.hidden = !src;
     if(n) n.textContent = note; };
-  /* choosing which part of the photo shows (saved as a focus point, 0–100% across and down) */
-  function applyPos(){ const whole = d.photoFit === 'whole';
-    const ff = $('#fitFill'), fw = $('#fitWhole'); if(ff) ff.setAttribute('aria-pressed', String(!whole)); if(fw) fw.setAttribute('aria-pressed', String(whole));
-    const cb = $('#centerBtn'); if(cb) cb.hidden = whole;
-    const h = $('#fitHint'); if(h) h.textContent = whole ? 'The whole photo shows, with plain space around it if its shape differs from the card.' : 'Drag the photo to choose which part shows on the card.';
-    const p = $('#pprev'); if(p) p.classList.toggle('whole', whole);
-    const im = $('#pprev img'); if(!im) return; const q = d.photoPos || { x:50, y:50 };
-    im.style.objectPosition = q.x + '% ' + q.y + '%'; im.style.objectFit = whole ? 'contain' : 'cover'; }
-  (() => { const p = $('#pprev'); if(!p) return; let drag = null;
-    const over = () => { const im = p.querySelector('img'); if(!im || !im.naturalWidth) return { ox:0, oy:0 };
-      const fw = p.clientWidth, fh = p.clientHeight, sc = Math.max(fw/im.naturalWidth, fh/im.naturalHeight);
-      return { ox: im.naturalWidth*sc - fw, oy: im.naturalHeight*sc - fh }; };
-    p.addEventListener('pointerdown', e => { if(!p.querySelector('img') || d.photoFit === 'whole') return; e.preventDefault(); p.setPointerCapture(e.pointerId);
-      drag = { x: e.clientX, y: e.clientY, start: { ...(d.photoPos || { x:50, y:50 }) }, ...over() }; p.classList.add('dragging'); });
-    p.addEventListener('pointermove', e => { if(!drag) return;
-      const nx = drag.ox > 1 ? drag.start.x - (e.clientX - drag.x) / drag.ox * 100 : 50;
-      const ny = drag.oy > 1 ? drag.start.y - (e.clientY - drag.y) / drag.oy * 100 : 50;
-      d.photoPos = { x: Math.round(Math.max(0, Math.min(100, nx))), y: Math.round(Math.max(0, Math.min(100, ny))) }; applyPos(); });
-    const end = () => { drag = null; p.classList.remove('dragging'); };
+  /* ---------- crop grid: drag and zoom the photo under a card-shaped frame ----------
+     On save the app cuts the picture to exactly what's in the frame, so every phone shows the same thing. */
+  const C = () => (d._crop = d._crop || { zoom: 1, cx: 0.5, cy: 0.5, whole: false });
+  let cropImg = null, cropLayout = null;
+  function layoutCrop(){
+    const p = $('#pprev'), im = cropImg; if(!p || !im || !im.naturalWidth) return;
+    const W = p.clientWidth, H = p.clientHeight, nw = im.naturalWidth, nh = im.naturalHeight, c = C();
+    let s, left, top;
+    if(c.whole){ s = Math.min(W/nw, H/nh); left = (W - nw*s)/2; top = (H - nh*s)/2; }
+    else {
+      s = Math.max(W/nw, H/nh) * c.zoom;
+      const hw = W/(2*nw*s), hh = H/(2*nh*s);
+      c.cx = Math.min(1 - hw, Math.max(hw, c.cx)); c.cy = Math.min(1 - hh, Math.max(hh, c.cy));
+      left = W/2 - c.cx*nw*s; top = H/2 - c.cy*nh*s;
+    }
+    Object.assign(im.style, { left: left + 'px', top: top + 'px', width: nw*s + 'px', height: nh*s + 'px' });
+    cropLayout = { W, H, s, left, top, nw, nh, whole: c.whole };
+    const ff = $('#fitFill'), fw = $('#fitWhole'); if(ff) ff.setAttribute('aria-pressed', String(!c.whole)); if(fw) fw.setAttribute('aria-pressed', String(c.whole));
+    const zw = $('#zoomWrap'); if(zw) zw.hidden = c.whole;
+    const zi = $('#zoomIn'); if(zi && +zi.value !== c.zoom) zi.value = c.zoom;
+    const h = $('#fitHint'); if(h) h.textContent = c.whole ? 'The whole photo shows, with its edges softly filled to the card’s shape.' : 'Drag the photo and zoom to fit the grid. What’s inside the frame is what shows on the card.';
+    p.classList.toggle('whole', c.whole);
+  }
+  async function exportCrop(force){
+    const L = cropLayout, im = cropImg;
+    if(!L || !im || !im.naturalWidth || !(force || d._cropDirty)) return null;
+    const OW = 1200, OH = 900, k = OW / L.W;
+    const cv = document.createElement('canvas'); cv.width = OW; cv.height = OH; const ctx = cv.getContext('2d');
+    if(L.whole){
+      const s2 = Math.max(OW/L.nw, OH/L.nh);
+      try{ ctx.filter = 'blur(28px) brightness(0.6)'; }catch{}
+      ctx.drawImage(im, (OW - L.nw*s2)/2, (OH - L.nh*s2)/2, L.nw*s2, L.nh*s2);
+      try{ ctx.filter = 'none'; }catch{}
+      if(!('filter' in ctx)){ ctx.fillStyle = 'rgba(18,22,18,.55)'; ctx.fillRect(0, 0, OW, OH); }
+    }
+    ctx.drawImage(im, L.left*k, L.top*k, L.nw*L.s*k, L.nh*L.s*k);
+    return await new Promise(res => cv.toBlob(res, 'image/jpeg', 0.88));
+  }
+  (() => { const p = $('#pprev'); if(!p) return;
+    const pts = new Map(); let start = null;
+    const snap = () => ({ ...C(), pts: [...pts.values()].map(q => ({ ...q })) });
+    p.addEventListener('pointerdown', e => { if(!cropImg || C().whole) return; e.preventDefault(); p.setPointerCapture(e.pointerId);
+      pts.set(e.pointerId, { x: e.clientX, y: e.clientY }); start = snap(); p.classList.add('dragging'); });
+    p.addEventListener('pointermove', e => { if(!pts.has(e.pointerId) || !cropLayout || !start) return;
+      pts.set(e.pointerId, { x: e.clientX, y: e.clientY }); const c = C(), L = cropLayout, now = [...pts.values()];
+      if(now.length >= 2 && start.pts.length >= 2){ // pinch to zoom
+        const dist = a => Math.hypot(a[0].x - a[1].x, a[0].y - a[1].y);
+        c.zoom = Math.min(4, Math.max(1, start.zoom * dist(now) / Math.max(1, dist(start.pts))));
+      } else if(now.length === 1 && start.pts.length === 1){
+        c.cx = start.cx - (now[0].x - start.pts[0].x) / (L.nw * L.s);
+        c.cy = start.cy - (now[0].y - start.pts[0].y) / (L.nh * L.s);
+      }
+      d._cropDirty = true; layoutCrop(); });
+    const end = e => { pts.delete(e.pointerId); start = pts.size ? snap() : null; if(!pts.size) p.classList.remove('dragging'); };
     p.addEventListener('pointerup', end); p.addEventListener('pointercancel', end);
-    p.addEventListener('keydown', e => { const m = { ArrowLeft:[-5,0], ArrowRight:[5,0], ArrowUp:[0,-5], ArrowDown:[0,5] }[e.key]; if(!m || !p.querySelector('img')) return; e.preventDefault();
-      const q = d.photoPos || { x:50, y:50 }; d.photoPos = { x: Math.max(0, Math.min(100, q.x + m[0])), y: Math.max(0, Math.min(100, q.y + m[1])) }; applyPos(); });
-    const cb = $('#centerBtn'); if(cb) cb.onclick = () => { d.photoPos = { x:50, y:50 }; applyPos(); };
+    p.addEventListener('keydown', e => { if(!cropImg) return; const c = C(); const step = 0.04 / c.zoom;
+      const m = { ArrowLeft:[-step,0], ArrowRight:[step,0], ArrowUp:[0,-step], ArrowDown:[0,step] }[e.key];
+      if(m){ e.preventDefault(); c.cx += m[0]; c.cy += m[1]; }
+      else if(e.key === '+' || e.key === '='){ c.zoom = Math.min(4, c.zoom * 1.1); }
+      else if(e.key === '-'){ c.zoom = Math.max(1, c.zoom / 1.1); } else return;
+      d._cropDirty = true; layoutCrop(); });
+    const zi = $('#zoomIn'); if(zi) zi.oninput = () => { C().zoom = +zi.value; d._cropDirty = true; layoutCrop(); };
+    const cb = $('#centerBtn'); if(cb) cb.onclick = () => { Object.assign(C(), { zoom: 1, cx: 0.5, cy: 0.5 }); d._cropDirty = true; layoutCrop(); };
     const ff = $('#fitFill'), fw = $('#fitWhole');
-    if(ff) ff.onclick = () => { d.photoFit = 'fill'; applyPos(); };
-    if(fw) fw.onclick = () => { d.photoFit = 'whole'; d.photoPos = { x:50, y:50 }; applyPos(); };
+    if(ff) ff.onclick = () => { C().whole = false; d._cropDirty = true; layoutCrop(); };
+    if(fw) fw.onclick = () => { C().whole = true; d._cropDirty = true; layoutCrop(); };
+    window.addEventListener('resize', layoutCrop);
   })();
   drawPreview();
 
@@ -1958,12 +2043,20 @@ function renderEditor(id){
     form.addEventListener('paste', e => { const fs=[...(e.clipboardData?.files||[])]; if(fs.length){ e.preventDefault(); addFiles(fs); } });
     showShots();
   }
-  if($('#f-photo')) $('#f-photo').onchange = e => { photoFile = e.target.files[0] || null; d.photoPos = null; d.photoFit = null; const p=$('#pprev');
+  if($('#f-photo')) $('#f-photo').onchange = e => { photoFile = e.target.files[0] || null; d.photoPos = null; d.photoFit = null; d._crop = null; d._cropDirty = false; d.photoCredit = ''; const p=$('#pprev');
     drawPreview(); if($('#shots')) showShots(); };
 
-  bindPasteBox($('#editPaste'), f => { photoFile = f; d.photoPos = null; d.photoFit = null; drawPreview(); if($('#shots')) showShots(); toast('Photo added. It saves with the recipe.'); });
+  bindPasteBox($('#editPaste'), f => { photoFile = f; d.photoPos = null; d.photoFit = null; d._crop = null; d._cropDirty = false; d.photoCredit = ''; drawPreview(); if($('#shots')) showShots(); toast('Photo added. It saves with the recipe.'); });
   const gi = $('#gImg'); if(gi) form.addEventListener('input', e => { if(e.target.id==='f-title' || e.target.id==='f-dish') gi.href = googleImg(e.target.value); });
   d.tags = canonList(d.tags); labelPicker($('#editCats'), d.tags.slice(), list => { d.tags = list; });
+  const fp = $('#findPhoto'); if(fp) fp.onclick = async () => { sync(); fp.disabled = true; fp.textContent = 'Looking…';
+    try{ const list = await window.RecipeBoxWeb.findPhotos(photoPages(d)); d._photoPicks = list;
+      if(!list.length) toast('No photo found on those pages. Try Find a photo on Google.');
+      else if(!photoFile && !d.photoId){ photoFile = list[0].blob; d.photoCredit = list[0].site; d._crop = null; d._cropDirty = false; } }
+    catch(e){ toast(claudeErr(e)); }
+    renderEditor(id); };
+  view.querySelectorAll('[data-pick]').forEach(b => b.onclick = () => { sync(); const pk = d._photoPicks[+b.dataset.pick]; if(!pk) return;
+    photoFile = pk.blob; d.photoCredit = pk.site; d._crop = null; d._cropDirty = false; renderEditor(id); });
   const ca = $('#claudeAgain'); if(ca) ca.onclick = async () => { ca.disabled = true; ca.textContent = 'Checking…'; await recheckClaude();
     if(state.sample){ d._mode = undefined; renderEditor(id); } else { ca.disabled = false; ca.textContent = 'Still off. Check again'; } };
   const sw = $('#switchMode'); if(sw) sw.onclick = () => { sync(); d._mode = mode==='link' ? 'manual' : 'link'; d._readMsg=''; renderEditor(id); };
@@ -1985,7 +2078,7 @@ function renderEditor(id){
       const imgs = shots.map(s=>s.blob); if(!imgs.length){ const pb = photoFile || (d.photoId ? await blobFromAsset(d.photoId) : null); if(pb) imgs.push(pb); }
       const out = await completeRecipe(d, imgs);
       if(!out || out.error){ m.innerHTML = '<span class="msg err">'+esc(out?.error || 'Claude couldn’t tell what dish this is.')+'</span>'; return; }
-      mergeSuggestion(d, out); renderEditor(id);
+      mergeSuggestion(d, out); renderEditor(id); autoPhotoFor(id);
       $('#sugmsg').innerHTML = '<span class="msg">Filled in from similar recipes. Check it over, then save.</span>';
     }catch(e){ m.innerHTML = '<span class="msg err">'+esc(claudeErr(e))+'</span>'; }
     finally{ const b=$('#suggest'); if(b) b.disabled=false; }
@@ -2018,7 +2111,7 @@ function renderEditor(id){
       d.basedOn = basedOnList(out);
       if(out.coverImage!=null && shots.length){ const ci = Number(out.coverImage); d._cover = ci>=1 && ci<=shots.length ? ci-1 : -1; }
       d._readMsg = '<span class="msg">'+(d.inferred ? 'The post didn’t list everything, so Claude filled the gaps from similar recipes. See Notes, check it over below, then save.' : 'Got it. Check it over below, then save.')+'</span>';
-      renderEditor(id);
+      renderEditor(id); autoPhotoFor(id);
     }catch(e){ msg.innerHTML = '<span class="msg err">'+esc(claudeErr(e))+' Or fill it in by hand.</span>'; }
     finally{ const b=$('#read'); if(b) b.disabled=false; }
   };
@@ -2031,14 +2124,16 @@ function renderEditor(id){
     try{
       const ci = coverIdx();
       let photoId = d.photoId || (!photoFile && ci>=0 && shots[ci].assetId) || '';
-      const up = photoFile || (!photoId && ci>=0 && shots[ci].blob) || null;
+      let up = photoFile || (!photoId && ci>=0 && shots[ci].blob) || null;
+      const cropped = await exportCrop(!!up);
+      if(cropped){ up = cropped; photoId = ''; d.photoPos = null; d.photoFit = null; }
       if(up && state.assets){ try{ const a = await state.assets.upload(up); photoId = a.id; }catch(err){ toast('Photo didn’t upload; saved without it'); } }
       const num = x => { const v = Number(x); return Number.isFinite(v) && v>0 ? v : null; };
       const nu = d.nutrition && (d.nutrition.calories||d.nutrition.protein||d.nutrition.carbs||d.nutrition.fat) ? d.nutrition : null;
       const srcUrl = normUrl(d.sourceUrl);
       const body = { title:d.title, sourceUrl:srcUrl, platform: platform(srcUrl), author:d.author,
         servings:num(d.servings), prepMinutes:num(d.prepMinutes), cookMinutes:num(d.cookMinutes),
-        ingredients:d.ingredients, steps:d.steps, tags:d.tags, cookbooks:d.cookbooks, notes:d.notes, photoId, photoPos: d.photoPos || null, photoFit: d.photoFit === 'whole' ? 'whole' : null, basedOn: d.basedOn || [], nutrition: nu, needsReview: false, inferred: !!d.inferred,
+        ingredients:d.ingredients, steps:d.steps, tags:d.tags, cookbooks:d.cookbooks, notes:d.notes, photoId, photoPos: d.photoPos || null, photoFit: d.photoFit === 'whole' ? 'whole' : null, photoCredit: d.photoCredit || '', basedOn: d.basedOn || [], nutrition: nu, needsReview: false, inferred: !!d.inferred,
         addedBy: existing ? (existing.addedBy||state.me||'') : (state.me||''), createdAt: existing ? (existing.createdAt||Date.now()) : Date.now(), updatedAt: Date.now() };
       const rid = id || newId('r');
       await bdoc('recipes/'+rid).set(body);
