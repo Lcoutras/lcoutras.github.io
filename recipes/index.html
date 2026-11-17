@@ -395,6 +395,9 @@ details.ingbox summary{cursor:pointer;font-weight:600}
 .msg{font-size:.9rem;padding:8px 12px;border-radius:10px;background:var(--sunk);display:inline-block}
 .msg.err{color:var(--danger)}
 .savebar{display:flex;gap:10px;justify-content:flex-end;flex-wrap:wrap;position:sticky;bottom:0;padding-block:12px calc(12px + env(safe-area-inset-bottom,0px));background:var(--bg);border-top:1px solid var(--line)}
+.photo-prev.whole{cursor:default}
+.fithint{color:var(--muted);font-size:.8rem}
+.framebar .seg button{font-size:.8rem}
 .photo-frame{display:grid;gap:6px;width:min(320px,100%)}
 .framebar{display:flex;gap:8px;align-items:center;justify-content:space-between;font-size:.8rem;color:var(--muted)}
 .photo-prev.movable{cursor:grab;touch-action:none;outline:1px solid var(--line)}
@@ -454,7 +457,9 @@ function platform(url){
 const safeUrl = u => /^https?:\/\//i.test(u||'') ? u : '';
 const normUrl = u => { u = String(u||'').trim(); if(!u) return ''; if(/^https?:\/\//i.test(u)) return u; if(/^[\w-]+(\.[\w-]+)+(\/|$)/.test(u)) return 'https://'+u; return u; };
 const imgSrc = r => r && r.photoId ? '/_blob/' + r.photoId : '';
-const posStyle = r => { const q = r && r.photoPos; if(!q) return ''; const x = Math.max(0, Math.min(100, +q.x)), y = Math.max(0, Math.min(100, +q.y)); return ` style="object-position:${isFinite(x)?x:50}% ${isFinite(y)?y:50}%"`; };
+const posStyle = r => { const q = r && r.photoPos, whole = r && r.photoFit === 'whole'; if(!q && !whole) return '';
+  const x = q ? Math.max(0, Math.min(100, +q.x)) : 50, y = q ? Math.max(0, Math.min(100, +q.y)) : 50;
+  return ` style="object-position:${isFinite(x)?x:50}% ${isFinite(y)?y:50}%${whole ? ';object-fit:contain' : ''}"`; };
 const mins = m => { m = Number(m)||0; if(!m) return '—'; return m >= 60 ? Math.floor(m/60)+'h'+(m%60?' '+(m%60)+'m':'') : m+' min'; };
 const initials = t => (t||'?').trim().split(/\s+/).slice(0,2).map(w=>w[0]).join('').toUpperCase();
 const byId = id => state.recipes.find(r => r.id === id);
@@ -1845,7 +1850,8 @@ function renderEditor(id){
       <div class="field"><label for="f-notes">Notes</label><textarea id="f-notes" style="min-height:80px" placeholder="Swaps, tips, what we changed">${esc(d.notes)}</textarea></div>
       ${state.assets ? `<div class="field"><label for="f-photo">Photo</label>
         <div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap"><div class="photo-frame"><div class="photo-prev" id="pprev" tabindex="-1" aria-label="Photo position. Drag, or use the arrow keys, to choose what shows on the recipe card."></div>
-          <div class="framebar" id="frameBar" hidden><span>Drag the photo to choose what shows</span><button class="btn small" type="button" id="centerBtn">Center</button></div></div>
+          <div class="framebar" id="frameBar" hidden><span class="seg" role="group" aria-label="How the photo fits"><button type="button" id="fitFill">Fill the card</button><button type="button" id="fitWhole">Whole photo</button></span><button class="btn small" type="button" id="centerBtn">Center</button></div>
+          <small id="fitHint" class="fithint"></small></div>
         <div class="phototools" style="flex:1 1 260px"><a class="btn small" id="gImg" href="${esc(googleImg(d.title || d._dish))}" target="_blank" rel="noopener">Find a photo on Google ↗</a><input id="f-photo" type="file" accept="image/*">${pasteBoxHTML('editPaste')}</div></div>
         <small id="photoNote"></small></div>` : ''}
     </section>
@@ -1875,12 +1881,18 @@ function renderEditor(id){
     const fb = $('#frameBar'); if(fb) fb.hidden = !src;
     if(n) n.textContent = note; };
   /* choosing which part of the photo shows (saved as a focus point, 0–100% across and down) */
-  function applyPos(){ const im = $('#pprev img'); if(!im) return; const q = d.photoPos || { x:50, y:50 }; im.style.objectPosition = q.x + '% ' + q.y + '%'; }
+  function applyPos(){ const whole = d.photoFit === 'whole';
+    const ff = $('#fitFill'), fw = $('#fitWhole'); if(ff) ff.setAttribute('aria-pressed', String(!whole)); if(fw) fw.setAttribute('aria-pressed', String(whole));
+    const cb = $('#centerBtn'); if(cb) cb.hidden = whole;
+    const h = $('#fitHint'); if(h) h.textContent = whole ? 'The whole photo shows, with plain space around it if its shape differs from the card.' : 'Drag the photo to choose which part shows on the card.';
+    const p = $('#pprev'); if(p) p.classList.toggle('whole', whole);
+    const im = $('#pprev img'); if(!im) return; const q = d.photoPos || { x:50, y:50 };
+    im.style.objectPosition = q.x + '% ' + q.y + '%'; im.style.objectFit = whole ? 'contain' : 'cover'; }
   (() => { const p = $('#pprev'); if(!p) return; let drag = null;
     const over = () => { const im = p.querySelector('img'); if(!im || !im.naturalWidth) return { ox:0, oy:0 };
       const fw = p.clientWidth, fh = p.clientHeight, sc = Math.max(fw/im.naturalWidth, fh/im.naturalHeight);
       return { ox: im.naturalWidth*sc - fw, oy: im.naturalHeight*sc - fh }; };
-    p.addEventListener('pointerdown', e => { if(!p.querySelector('img')) return; e.preventDefault(); p.setPointerCapture(e.pointerId);
+    p.addEventListener('pointerdown', e => { if(!p.querySelector('img') || d.photoFit === 'whole') return; e.preventDefault(); p.setPointerCapture(e.pointerId);
       drag = { x: e.clientX, y: e.clientY, start: { ...(d.photoPos || { x:50, y:50 }) }, ...over() }; p.classList.add('dragging'); });
     p.addEventListener('pointermove', e => { if(!drag) return;
       const nx = drag.ox > 1 ? drag.start.x - (e.clientX - drag.x) / drag.ox * 100 : 50;
@@ -1891,6 +1903,9 @@ function renderEditor(id){
     p.addEventListener('keydown', e => { const m = { ArrowLeft:[-5,0], ArrowRight:[5,0], ArrowUp:[0,-5], ArrowDown:[0,5] }[e.key]; if(!m || !p.querySelector('img')) return; e.preventDefault();
       const q = d.photoPos || { x:50, y:50 }; d.photoPos = { x: Math.max(0, Math.min(100, q.x + m[0])), y: Math.max(0, Math.min(100, q.y + m[1])) }; applyPos(); });
     const cb = $('#centerBtn'); if(cb) cb.onclick = () => { d.photoPos = { x:50, y:50 }; applyPos(); };
+    const ff = $('#fitFill'), fw = $('#fitWhole');
+    if(ff) ff.onclick = () => { d.photoFit = 'fill'; applyPos(); };
+    if(fw) fw.onclick = () => { d.photoFit = 'whole'; d.photoPos = { x:50, y:50 }; applyPos(); };
   })();
   drawPreview();
 
@@ -1933,10 +1948,10 @@ function renderEditor(id){
     form.addEventListener('paste', e => { const fs=[...(e.clipboardData?.files||[])]; if(fs.length){ e.preventDefault(); addFiles(fs); } });
     showShots();
   }
-  if($('#f-photo')) $('#f-photo').onchange = e => { photoFile = e.target.files[0] || null; d.photoPos = null; const p=$('#pprev');
+  if($('#f-photo')) $('#f-photo').onchange = e => { photoFile = e.target.files[0] || null; d.photoPos = null; d.photoFit = null; const p=$('#pprev');
     drawPreview(); if($('#shots')) showShots(); };
 
-  bindPasteBox($('#editPaste'), f => { photoFile = f; d.photoPos = null; drawPreview(); if($('#shots')) showShots(); toast('Photo added. It saves with the recipe.'); });
+  bindPasteBox($('#editPaste'), f => { photoFile = f; d.photoPos = null; d.photoFit = null; drawPreview(); if($('#shots')) showShots(); toast('Photo added. It saves with the recipe.'); });
   const gi = $('#gImg'); if(gi) form.addEventListener('input', e => { if(e.target.id==='f-title' || e.target.id==='f-dish') gi.href = googleImg(e.target.value); });
   d.tags = canonList(d.tags); labelPicker($('#editCats'), d.tags.slice(), list => { d.tags = list; });
   const ca = $('#claudeAgain'); if(ca) ca.onclick = async () => { ca.disabled = true; ca.textContent = 'Checking…'; await recheckClaude();
@@ -2013,7 +2028,7 @@ function renderEditor(id){
       const srcUrl = normUrl(d.sourceUrl);
       const body = { title:d.title, sourceUrl:srcUrl, platform: platform(srcUrl), author:d.author,
         servings:num(d.servings), prepMinutes:num(d.prepMinutes), cookMinutes:num(d.cookMinutes),
-        ingredients:d.ingredients, steps:d.steps, tags:d.tags, cookbooks:d.cookbooks, notes:d.notes, photoId, photoPos: d.photoPos || null, basedOn: d.basedOn || [], nutrition: nu, needsReview: false, inferred: !!d.inferred,
+        ingredients:d.ingredients, steps:d.steps, tags:d.tags, cookbooks:d.cookbooks, notes:d.notes, photoId, photoPos: d.photoPos || null, photoFit: d.photoFit === 'whole' ? 'whole' : null, basedOn: d.basedOn || [], nutrition: nu, needsReview: false, inferred: !!d.inferred,
         addedBy: existing ? (existing.addedBy||state.me||'') : (state.me||''), createdAt: existing ? (existing.createdAt||Date.now()) : Date.now(), updatedAt: Date.now() };
       const rid = id || newId('r');
       await bdoc('recipes/'+rid).set(body);
