@@ -14,7 +14,7 @@
 <link rel="icon" href="food-icon.svg" type="image/svg+xml">
 <link rel="icon" type="image/png" sizes="180x180" href="food-icon-180.png">
 <script src="config.js?v=3"></script>
-<script src="shim.js?v=6"></script>
+<script src="shim.js?v=7"></script>
 <style>
 [hidden]{display:none!important}
 :root{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
@@ -1076,9 +1076,17 @@ $('#bookBtn').onclick = e => { e.stopPropagation(); if($('#bookMenu').hidden) op
 document.addEventListener('click', e => { if(!$('#bookWrap').contains(e.target)) closeBookMenu(); });
 document.addEventListener('keydown', e => { if(e.key==='Escape' && !$('#bookMenu').hidden){ closeBookMenu(); $('#bookBtn').focus(); }
   if(!$('#bookMenu').hidden && (e.key==='ArrowDown' || e.key==='ArrowUp')){ e.preventDefault(); const items = [...$('#bookMenu').querySelectorAll('button')]; const i = items.indexOf(document.activeElement); const n = items[(i + (e.key==='ArrowDown'?1:-1) + items.length) % items.length]; if(n) n.focus(); } });
+async function recheckClaude(){
+  if(!(window.RecipeBoxWeb && window.RecipeBoxWeb.recheckClaude)) return;
+  const was = !!state.sample;
+  state.sample = await window.RecipeBoxWeb.recheckClaude();
+  if(state.sample){ try{ const l = await state.sample.limits(); state.imgOK = !!(l && l.images); state.imgMax = (l && l.images && l.images.maxCount) || 4; }catch{} }
+  if(!was && state.sample) toast('Claude is switched on');
+}
 $('#refreshBtn').onclick = async () => {
   const b = $('#refreshBtn'); if(b.disabled) return; b.disabled = true; b.classList.add('spinning');
   try{
+    await recheckClaude();
     if(state.db && state.me){
       if(state.myHash) await checkInvites();
       const keepDraft = draft; openBook(state.bookId); if(route().name==='edit') draft = keepDraft;
@@ -1777,7 +1785,7 @@ function renderEditor(id){
   const mode = id ? 'edit' : (canClaude ? (d._mode || 'choose') : 'manual');
   /* Website edition: say plainly when Claude is off, instead of quietly hiding its buttons */
   const cs = window.RecipeBoxWeb && window.RecipeBoxWeb.claudeStatus;
-  const claudeOffNote = (!canClaude && cs && cs !== 'on') ? `<div class="helpbox"><b>Claude is switched off right now,</b> so recipes won’t fill in from links. ${cs==='not_configured' ? 'The Anthropic API key hasn’t been added in Supabase yet (Edge Functions → Secrets → <code>ANTHROPIC_API_KEY</code>).' : cs==='no_credit' ? 'The Anthropic account is out of credit.' : 'Claude couldn’t be reached. Tap Refresh and try again.'} You can still type the recipe in below.</div>` : '';
+  const claudeOffNote = (!canClaude && cs && cs !== 'on') ? `<div class="helpbox"><b>Claude is switched off right now,</b> so recipes won’t fill in from links. ${cs==='not_configured' ? 'The Anthropic API key hasn’t been added in Supabase yet (Edge Functions → Secrets → <code>ANTHROPIC_API_KEY</code>).' : cs==='no_credit' ? 'The Anthropic account is out of credit.' : 'Claude couldn’t be reached. Tap Refresh and try again.'} You can still type the recipe in below. <button class="btn small" type="button" id="claudeAgain">Check again</button></div>` : '';
   if(mode==='choose'){
     view.innerHTML = `<div class="editor">
       <a class="btn ghost back" href="#" style="justify-self:start">← Cancel</a>
@@ -1931,6 +1939,8 @@ function renderEditor(id){
   bindPasteBox($('#editPaste'), f => { photoFile = f; d.photoPos = null; drawPreview(); if($('#shots')) showShots(); toast('Photo added. It saves with the recipe.'); });
   const gi = $('#gImg'); if(gi) form.addEventListener('input', e => { if(e.target.id==='f-title' || e.target.id==='f-dish') gi.href = googleImg(e.target.value); });
   d.tags = canonList(d.tags); labelPicker($('#editCats'), d.tags.slice(), list => { d.tags = list; });
+  const ca = $('#claudeAgain'); if(ca) ca.onclick = async () => { ca.disabled = true; ca.textContent = 'Checking…'; await recheckClaude();
+    if(state.sample){ d._mode = undefined; renderEditor(id); } else { ca.disabled = false; ca.textContent = 'Still off. Check again'; } };
   const sw = $('#switchMode'); if(sw) sw.onclick = () => { sync(); d._mode = mode==='link' ? 'manual' : 'link'; d._readMsg=''; renderEditor(id); };
   const mh = $('#moreHelp'); if(mh) mh.onclick = () => { sync(); d._needHelp = true; d._readMsg=''; renderEditor(id); };
   if($('#f-url') && mode==='link'){ const u = $('#f-url'); let last = '';

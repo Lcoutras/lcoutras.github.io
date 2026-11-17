@@ -271,4 +271,6 @@
     if(name === 'sample') return claudeOn();
     return caps[name] || null; } });
   window.RecipeBoxWeb = { familyLink: () => location.origin + location.pathname.replace(/index\.html$/, '') + '?k=' + encodeURIComponent(KEY) };
+  /* Ask again (after the key is added, without reloading the page) */
+  window.RecipeBoxWeb.recheckClaude = () => { claudeReady = null; return claudeOn(); };
 })();
