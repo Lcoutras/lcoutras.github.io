@@ -4,6 +4,7 @@
 import Anthropic from "npm:@anthropic-ai/sdk@1.8.0";
 
 const MODEL = "claude-sonnet-5-5";
+const PICK_MODEL = "claude-haiku-5-5"; // choosing a cover photo is a quick visual judgment
 const CORS = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, apikey, content-type, x-client-info",
@@ -46,42 +47,103 @@ async function fetchLimited(u: URL, maxBytes: number, accept: string) {
     return { bytes: out, type: (res.headers.get("content-type") || "").split(";")[0].trim().toLowerCase(), url: res.url };
   } catch { return null; } finally { clearTimeout(t); }
 }
-function imageFromHtml(html: string, base: string): string | null {
-  const meta = (attr: string) => {
-    const re = new RegExp(`<meta[^>]+(?:property|name)=["']${attr}["'][^>]*>`, "i"); const m = html.match(re);
-    const c = m && m[0].match(/content=["']([^"']+)["']/i); return c ? c[1] : null; };
-  let img = meta("og:image") || meta("og:image:url") || meta("twitter:image") || meta("twitter:image:src");
-  if (!img) { // recipe pages often put the photo in their structured recipe data
-    const ld = html.match(/"image"\s*:\s*(?:\[\s*)?(?:\{[^}]*?"url"\s*:\s*)?"([^"]+\.(?:jpe?g|png|webp)[^"]*)"/i); if (ld) img = ld[1]; }
-  if (!img) return null;
-  try { return new URL(img.replace(/&amp;/g, "&"), base).toString(); } catch { return null; }
+function imagesFromHtml(html: string, base: string): string[] {
+  const out: string[] = [];
+  const add = (u: string | null | undefined) => {
+    if (!u) return; try { const x = new URL(u.replace(/&amp;/g, "&").replace(/\\\//g, "/"), base).toString(); if (!out.includes(x)) out.push(x); } catch { /* skip */ } };
+  for (const attr of ["og:image", "og:image:url", "og:image:secure_url", "twitter:image", "twitter:image:src"]) {
+    const re = new RegExp(`<meta[^>]+(?:property|name)=["']${attr}["'][^>]*>`, "gi");
+    for (const m of html.match(re) || []) { const c = m.match(/content=["']([^"']+)["']/i); add(c && c[1]); }
+  }
+  // Recipe pages list the dish photo in their structured data, often in several shapes (1:1, 4:3, 16:9).
+  for (const block of html.match(/"image"\s*:\s*(\[[^\]]*\]|\{[^}]*\}|"[^"]+")/gi) || []) {
+    for (const m of block.match(/https?:[^"\s]+?\.(?:jpe?g|png|webp)(?:\?[^"\s]*)?(?=")/gi) || []) add(m);
+  }
+  return out.slice(0, 6);
+}
+// Width and height straight from the file header (JPEG, PNG, GIF, WebP).
+function imageSize(b: Uint8Array): { w: number; h: number } | null {
+  const u16 = (i: number) => (b[i] << 8) | b[i + 1], le16 = (i: number) => b[i] | (b[i + 1] << 8);
+  if (b[0] === 0x89 && b[1] === 0x50) return { w: (b[16] << 24 | b[17] << 16 | b[18] << 8 | b[19]) >>> 0, h: (b[20] << 24 | b[21] << 16 | b[22] << 8 | b[23]) >>> 0 };
+  if (b[0] === 0x47 && b[1] === 0x49) return { w: le16(6), h: le16(8) };
+  if (b[0] === 0x52 && b[8] === 0x57) { const t = String.fromCharCode(b[12], b[13], b[14], b[15]);
+    if (t === "VP8X") return { w: 1 + (b[24] | b[25] << 8 | b[26] << 16), h: 1 + (b[27] | b[28] << 8 | b[29] << 16) };
+    if (t === "VP8 ") return { w: le16(26) & 0x3fff, h: le16(28) & 0x3fff };
+    if (t === "VP8L") { const v = b[21] | b[22] << 8 | b[23] << 16 | b[24] << 24; return { w: 1 + (v & 0x3fff), h: 1 + ((v >> 14) & 0x3fff) }; } }
+  if (b[0] === 0xff && b[1] === 0xd8) { let i = 2;
+    while (i + 9 < b.length) { if (b[i] !== 0xff) { i++; continue; } const m = b[i + 1];
+      if (m >= 0xc0 && m <= 0xcf && m !== 0xc4 && m !== 0xc8 && m !== 0xcc) return { h: u16(i + 5), w: u16(i + 7) };
+      i += 2 + u16(i + 2); } }
+  return null;
 }
 const b64 = (bytes: Uint8Array) => { let s = ""; for (let i = 0; i < bytes.length; i += 0x8000) s += String.fromCharCode(...bytes.subarray(i, i + 0x8000)); return btoa(s); };
-async function findPhotos(urls: string[]) {
+type Photo = { page: string; site: string; media_type: string; data: string; w: number; h: number; fit: "fill" | "whole"; chosenBy?: string };
+// Without Claude: prefer pictures close to the card's 4:3 shape and large enough to look sharp.
+const shapeScore = (p: Photo) => -Math.abs(Math.log((p.w / p.h) / (4 / 3))) + Math.min(p.w, 1600) / 4000;
+async function findPhotos(urls: string[], apiKey?: string, dish?: string): Promise<Photo[]> {
   const pages = [...new Set(urls)].map(safePage).filter((x): x is URL => !!x).slice(0, 5);
-  const found = await Promise.all(pages.map(async (page) => {
+  const perPage = await Promise.all(pages.map(async (page) => {
     const html = await fetchLimited(page, 2_000_000, "text/html");
-    if (!html || !/html/.test(html.type)) return null;
-    const imgUrl = imageFromHtml(new TextDecoder().decode(html.bytes), html.url || page.toString());
-    const iu = imgUrl ? safePage(imgUrl) : null; if (!iu) return null;
-    const img = await fetchLimited(iu, 3_000_000, "image/*");
-    if (!img || !/^image\/(jpeg|png|webp|gif)$/.test(img.type) || img.bytes.length < 5000) return null;
-    return { page: page.toString(), site: page.hostname.replace(/^www\./, ""), media_type: img.type, data: b64(img.bytes) };
+    if (!html || !/html/.test(html.type)) return [];
+    const imgs = imagesFromHtml(new TextDecoder().decode(html.bytes), html.url || page.toString()).map(safePage).filter((x): x is URL => !!x).slice(0, 3);
+    const got = await Promise.all(imgs.map(async (iu) => {
+      const img = await fetchLimited(iu, 3_500_000, "image/*");
+      if (!img || !/^image\/(jpeg|png|webp|gif)$/.test(img.type) || img.bytes.length < 5000) return null;
+      const sz = imageSize(img.bytes); if (!sz || sz.w < 300 || sz.h < 200) return null;
+      const ratio = sz.w / sz.h;
+      return { page: page.toString(), site: page.hostname.replace(/^www\./, ""), media_type: img.type, data: b64(img.bytes), w: sz.w, h: sz.h,
+        fit: (ratio < 1.05 || ratio > 2.1 ? "whole" : "fill") as "fill" | "whole" };
+    }));
+    return got.filter((x): x is Photo => !!x);
   }));
   const seen = new Set<string>();
-  return found.filter((f) => f && !seen.has(f.data.slice(0, 200)) && seen.add(f.data.slice(0, 200))).slice(0, 4);
+  let photos = perPage.flat().filter((f) => !seen.has(f.data.slice(0, 300)) && seen.add(f.data.slice(0, 300)));
+  photos.sort((a, b) => shapeScore(b) - shapeScore(a));
+  photos = photos.slice(0, 6);
+  if (!apiKey) photos = photos.map((p) => ({ ...p, chosenBy: "shape: no key" }));
+  else if (photos.length > 1) {
+    try { photos = await claudePick(photos, apiKey, dish); } catch (e) { console.log("pick failed", String(e).slice(0, 300)); photos = photos.map((p) => ({ ...p, chosenBy: "shape: " + String(e).slice(0, 160) })); }
+  }
+  return photos.slice(0, 4);
+}
+// Claude looks at the candidates and puts the most appetizing, best-framed picture of the dish first.
+async function claudePick(photos: Photo[], apiKey: string, dish?: string): Promise<Photo[]> {
+  const client = new Anthropic({ apiKey });
+  const content: Anthropic.ContentBlockParam[] = [];
+  photos.forEach((p, i) => {
+    content.push({ type: "text", text: `Photo ${i + 1} (${p.w}×${p.h}, from ${p.site}):` });
+    content.push({ type: "image", source: { type: "base64", media_type: p.media_type as "image/jpeg", data: p.data } });
+  });
+  content.push({ type: "text", text: `These photos come from recipe pages${dish ? ` for "${dish}"` : ""}. Pick the ones to use as the recipe's cover photo on a 4:3 card, best first.
+A good cover shows the finished dish looking appetizing: the whole plate or bowl in view (not an extreme close-up of a few pieces), well lit, in focus, and no text, logos, collages, step-by-step grids or people's faces covering it. Leave out photos that don't show the finished dish at all.
+For each photo you keep, say "fill" if cropping it to 4:3 from the center keeps the dish fully in frame, or "whole" if a crop would cut the dish off (then the full photo is shown with soft edges).
+Return ONLY JSON: {"order":[{"photo": number, "fit": "fill" | "whole"}]}` });
+  const res = await client.messages.create({ model: PICK_MODEL, max_tokens: 4000, messages: [{ role: "user", content }] });
+  const text = res.content.filter((b) => b.type === "text").map((b) => (b as { text: string }).text).join("");
+  const fallback = (why: string) => photos.map((p) => ({ ...p, chosenBy: "shape: " + why }));
+  const m = text.match(/\{[\s\S]*\}/); if (!m) return fallback("no json (" + res.stop_reason + "): " + text.slice(0, 120));
+  let parsed: unknown; try { parsed = JSON.parse(m[0]); } catch { return fallback("bad json: " + m[0].slice(0, 120)); }
+  const raw = ((parsed as { order?: unknown[] }).order || []) as unknown[];
+  // Accept [{"photo":2,"fit":"fill"}, ...] or a plain list of numbers [2, 1, ...]
+  const order = raw.map((o) => typeof o === "number" || typeof o === "string" ? { photo: Number(o) } : (o as { photo?: number; fit?: string }));
+  const picked: Photo[] = [];
+  const used = new Set<number>();
+  for (const o of order) { const i = Number(o.photo) - 1, p = photos[i]; if (p && !used.has(i)) { used.add(i); picked.push({ ...p, fit: o.fit === "whole" ? "whole" : o.fit === "fill" ? "fill" : p.fit, chosenBy: "claude" }); } }
+  if (!picked.length) return fallback("empty order: " + m[0].slice(0, 120));
+  console.log(JSON.stringify({ pick: order, of: photos.length }));
+  return [...picked, ...photos.filter((p) => !picked.some((q) => q.data === p.data))];
 }
 
 Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: CORS });
   if (req.method !== "POST") return reply(405, { code: "invalid_argument", message: "POST only" });
 
-  let body: { k?: string; prompt?: string; images?: { media_type: string; data: string }[]; ping?: boolean; web?: boolean; photos?: string[] };
+  let body: { k?: string; prompt?: string; images?: { media_type: string; data: string }[]; ping?: boolean; web?: boolean; photos?: string[]; dish?: string };
   try { body = await req.json(); } catch { return reply(400, { code: "invalid_argument", message: "Bad JSON" }); }
 
   if (!(await keyOk(String(body.k || "")))) return reply(401, { code: "not_granted", message: "Family key not accepted" });
 
-  if (Array.isArray(body.photos)) return reply(200, { photos: await findPhotos(body.photos.map(String)) });
+  if (Array.isArray(body.photos)) return reply(200, { photos: await findPhotos(body.photos.map(String), Deno.env.get("ANTHROPIC_API_KEY"), String(body.dish || "").slice(0, 120)) });
 
   const apiKey = Deno.env.get("ANTHROPIC_API_KEY");
   if (!apiKey) return reply(503, { code: "not_configured", message: "Claude isn't switched on yet: the Anthropic API key hasn't been added." });

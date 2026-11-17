@@ -14,7 +14,7 @@
 <link rel="icon" href="food-icon.svg" type="image/svg+xml">
 <link rel="icon" type="image/png" sizes="180x180" href="food-icon-180.png">
 <script src="config.js?v=3"></script>
-<script src="shim.js?v=11"></script>
+<script src="shim.js?v=12"></script>
 <style>
 [hidden]{display:none!important}
 :root{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
@@ -1501,8 +1501,8 @@ function renderDetail(id){
         ingredients:d.ingredients, steps:d.steps, tags:d.tags||[], notes:d.notes||'', nutrition:d.nutrition||null, inferred:true, updatedAt:Date.now() });
       toast('Filled in from similar recipes');
       if(!r.photoId && canFindPhotos() && state.assets){ try{
-        const list = await window.RecipeBoxWeb.findPhotos(photoPages({ ...r, basedOn: d.basedOn }));
-        if(list.length){ const a = await state.assets.upload(list[0].blob); await bdoc('recipes/'+id).update({ photoId: a.id, photoCredit: list[0].site, photoPos: null, photoFit: null }); toast('Added a photo from ' + list[0].site); } }catch{} }
+        const list = await window.RecipeBoxWeb.findPhotos(photoPages({ ...r, basedOn: d.basedOn }), d.title);
+        if(list.length){ const a = await state.assets.upload(await fitPhoto(list[0].blob, list[0].fit === 'whole')); await bdoc('recipes/'+id).update({ photoId: a.id, photoCredit: list[0].site, photoPos: null, photoFit: null }); toast('Added a photo from ' + list[0].site); } }catch{} }
     }catch(e){ fm.disabled=false; $('#fillmsg').innerHTML = '<span class="msg err">'+esc(claudeErr(e))+'</span>'; } };
   const cs = $('#copySrc'); if(cs) cs.onclick = () => { const done = () => { cs.textContent = 'Copied ✓'; setTimeout(()=>{ cs.textContent='Copy link'; }, 1800); };
     try{ navigator.clipboard.writeText(url).then(done, () => { const sel = getSelection(), rg = document.createRange(); rg.selectNodeContents($('#srcA')); sel.removeAllRanges(); sel.addRange(rg); cs.textContent = 'Selected, copy it'; }); }
@@ -2026,16 +2026,45 @@ let draft = null, shots = [], photoFile = null;
 const canFindPhotos = () => !!(window.RecipeBoxWeb && window.RecipeBoxWeb.findPhotos && state.sample);
 /* the post's own preview picture first (the creator's dish), then the recipe pages Claude used */
 const photoPages = r => [r.sourceUrl, ...(r.basedOn || [])].map(u => safeUrl(normUrl(u))).filter(Boolean);
+/* Soft background for "Whole photo": shrink the photo to a few pixels, then stretch it back up.
+   Works in every browser (iPhone Safari ignores canvas blur filters). */
+function softBackdrop(ctx, im, nw, nh, OW, OH){
+  const s2 = Math.max(OW/nw, OH/nh);
+  const tiny = document.createElement('canvas'); tiny.width = 24; tiny.height = 18;
+  const tc = tiny.getContext('2d'); tc.imageSmoothingEnabled = true; tc.imageSmoothingQuality = 'high';
+  tc.drawImage(im, (24 - nw*s2*24/OW)/2, (18 - nh*s2*18/OH)/2, nw*s2*24/OW, nh*s2*18/OH);
+  const mid = document.createElement('canvas'); mid.width = 96; mid.height = 72;
+  const mc = mid.getContext('2d'); mc.imageSmoothingEnabled = true; mc.imageSmoothingQuality = 'high';
+  mc.drawImage(tiny, 0, 0, 96, 72);
+  ctx.imageSmoothingEnabled = true; ctx.imageSmoothingQuality = 'high';
+  ctx.drawImage(mid, -OW*0.04, -OH*0.04, OW*1.08, OH*1.08);
+  ctx.fillStyle = 'rgba(10,14,22,.45)'; ctx.fillRect(0, 0, OW, OH);
+}
+/* A found photo cut to the card's shape: centered fill, or the whole photo with soft edges */
+async function fitPhoto(blob, whole){
+  const url = URL.createObjectURL(blob);
+  try{ const im = new Image(); await new Promise((res, rej) => { im.onload = res; im.onerror = rej; im.src = url; });
+    const OW = 1200, OH = 900, nw = im.naturalWidth, nh = im.naturalHeight; if(!nw || !nh) return blob;
+    const cv = document.createElement('canvas'); cv.width = OW; cv.height = OH; const ctx = cv.getContext('2d');
+    if(whole) softBackdrop(ctx, im, nw, nh, OW, OH);
+    const s = whole ? Math.min(OW/nw, OH/nh) : Math.max(OW/nw, OH/nh);
+    ctx.drawImage(im, (OW - nw*s)/2, (OH - nh*s)/2, nw*s, nh*s);
+    return await new Promise(res => cv.toBlob(b => res(b || blob), 'image/jpeg', 0.88));
+  }catch{ return blob; } finally{ URL.revokeObjectURL(url); }
+}
+window.savorFitPhoto = fitPhoto;
+/* Use a photo the finder picked, with the fit Claude chose for it */
+const usePick = (d, pk) => { photoFile = pk.blob; d.photoCredit = pk.site; d._crop = { zoom: 1, cx: 0.5, cy: 0.5, whole: pk.fit === 'whole' }; d._cropDirty = true; };
 async function autoPhotoFor(id){
   if(!canFindPhotos() || !draft) return;
   const d = draft;
   if(photoFile || d.photoId || (shots.length && d._cover !== -1) || !photoPages(d).length) return;
-  d._photoBusy = true; const n = $('#photoNote'); if(n) n.textContent = 'Looking for a photo on the recipe pages…';
+  d._photoBusy = true; const n = $('#photoNote'); if(n) n.textContent = 'Looking at the photos on the recipe pages and picking the best one…';
   try{
-    const list = await window.RecipeBoxWeb.findPhotos(photoPages(d));
+    const list = await window.RecipeBoxWeb.findPhotos(photoPages(d), d.title || d._dish);
     if(draft !== d) return;
     d._photoPicks = list;
-    if(list.length && !photoFile && !d.photoId){ photoFile = list[0].blob; d.photoCredit = list[0].site; d._crop = null; d._cropDirty = false; }
+    if(list.length && !photoFile && !d.photoId) usePick(d, list[0]);
   }catch{} finally{ d._photoBusy = false; }
   if(draft === d && route().name === 'edit') renderEditor(id);
 }
@@ -2118,7 +2147,7 @@ function renderEditor(id){
           <div class="framebar" id="frameBar" hidden><span class="seg" role="group" aria-label="How the photo fits"><button type="button" id="fitFill">Fill</button><button type="button" id="fitWhole">Whole photo</button></span>
             <label class="zoom" id="zoomWrap"><span>Zoom</span><input type="range" id="zoomIn" min="1" max="4" step="0.01" value="1" aria-label="Zoom"></label><button class="btn small" type="button" id="centerBtn">Reset</button></div>
           <small id="fitHint" class="fithint"></small><small id="photoCredit" class="fithint"></small></div>
-        <div class="phototools" style="flex:1 1 260px"><a class="btn small" id="gImg" href="${esc(googleImg(d.title || d._dish))}" target="_blank" rel="noopener">Find a photo on Google ↗</a>${canFindPhotos() && photoPages(d).length ? `<button class="btn small" type="button" id="findPhoto" ${d._photoBusy?'disabled':''}>${d._photoBusy ? 'Looking…' : 'Photo from the recipe'}</button>` : ''}<input id="f-photo" type="file" accept="image/*">${pasteBoxHTML('editPaste')}
+        <div class="phototools" style="flex:1 1 260px"><a class="btn small" id="gImg" href="${esc(googleImg(d.title || d._dish))}" target="_blank" rel="noopener">Find a photo on Google ↗</a>${canFindPhotos() && photoPages(d).length ? `<button class="btn small" type="button" id="findPhoto" ${d._photoBusy?'disabled':''}>${d._photoBusy ? 'Looking…' : (d.photoId || photoFile) ? 'Find a better photo' : 'Photo from the recipe'}</button>` : ''}<input id="f-photo" type="file" accept="image/*">${pasteBoxHTML('editPaste')}
           ${(d._photoPicks||[]).length ? `<div class="picks" role="group" aria-label="Photos found on the recipe pages">${d._photoPicks.map((pk,i) => `<button type="button" class="pick${photoFile===pk.blob?' on':''}" data-pick="${i}" title="From ${esc(pk.site)}"><img src="${esc(pk.url)}" alt="Photo from ${esc(pk.site)}"><span>${esc(pk.site)}</span></button>`).join('')}</div>` : ''}</div></div>
         <small id="photoNote"></small></div>` : ''}
     </section>
@@ -2180,18 +2209,7 @@ function renderEditor(id){
     const OW = 1200, OH = 900, k = OW / L.W;
     const cv = document.createElement('canvas'); cv.width = OW; cv.height = OH; const ctx = cv.getContext('2d');
     if(L.whole){
-      // Soft background: shrink the photo to a few pixels, then stretch it back up.
-      // Works in every browser (iPhone Safari ignores canvas blur filters).
-      const s2 = Math.max(OW/L.nw, OH/L.nh);
-      const tiny = document.createElement('canvas'); tiny.width = 24; tiny.height = 18;
-      const tc = tiny.getContext('2d'); tc.imageSmoothingEnabled = true; tc.imageSmoothingQuality = 'high';
-      tc.drawImage(im, (24 - L.nw*s2*24/OW)/2, (18 - L.nh*s2*18/OH)/2, L.nw*s2*24/OW, L.nh*s2*18/OH);
-      const mid = document.createElement('canvas'); mid.width = 96; mid.height = 72;
-      const mc = mid.getContext('2d'); mc.imageSmoothingEnabled = true; mc.imageSmoothingQuality = 'high';
-      mc.drawImage(tiny, 0, 0, 96, 72);
-      ctx.imageSmoothingEnabled = true; ctx.imageSmoothingQuality = 'high';
-      ctx.drawImage(mid, -OW*0.04, -OH*0.04, OW*1.08, OH*1.08);
-      ctx.fillStyle = 'rgba(10,14,22,.45)'; ctx.fillRect(0, 0, OW, OH);
+      softBackdrop(ctx, im, L.nw, L.nh, OW, OH);
     }
     ctx.drawImage(im, L.left*k, L.top*k, L.nw*L.s*k, L.nh*L.s*k);
     return await new Promise(res => cv.toBlob(res, 'image/jpeg', 0.88));
@@ -2274,13 +2292,13 @@ function renderEditor(id){
   const gi = $('#gImg'); if(gi) form.addEventListener('input', e => { if(e.target.id==='f-title' || e.target.id==='f-dish') gi.href = googleImg(e.target.value); });
   d.tags = canonList(d.tags); labelPicker($('#editCats'), d.tags.slice(), list => { d.tags = list; });
   const fp = $('#findPhoto'); if(fp) fp.onclick = async () => { sync(); fp.disabled = true; fp.textContent = 'Looking…';
-    try{ const list = await window.RecipeBoxWeb.findPhotos(photoPages(d)); d._photoPicks = list;
+    try{ const list = await window.RecipeBoxWeb.findPhotos(photoPages(d), d.title || d._dish); d._photoPicks = list;
       if(!list.length) toast('No photo found on those pages. Try Find a photo on Google.');
-      else if(!photoFile && !d.photoId){ photoFile = list[0].blob; d.photoCredit = list[0].site; d._crop = null; d._cropDirty = false; } }
+      else { usePick(d, list[0]); toast(list.length > 1 ? 'Picked the best of ' + list.length + ' photos. Tap another below to switch.' : 'Found a photo.'); } }
     catch(e){ toast(claudeErr(e)); }
     renderEditor(id); };
   view.querySelectorAll('[data-pick]').forEach(b => b.onclick = () => { sync(); const pk = d._photoPicks[+b.dataset.pick]; if(!pk) return;
-    photoFile = pk.blob; d.photoCredit = pk.site; d._crop = null; d._cropDirty = false; renderEditor(id); });
+    usePick(d, pk); renderEditor(id); });
   const ca = $('#claudeAgain'); if(ca) ca.onclick = async () => { ca.disabled = true; ca.textContent = 'Checking…'; await recheckClaude();
     if(state.sample){ d._mode = undefined; renderEditor(id); } else { ca.disabled = false; ca.textContent = 'Still off. Check again'; } };
   const sw = $('#switchMode'); if(sw) sw.onclick = () => { sync(); d._mode = mode==='link' ? 'manual' : 'link'; d._readMsg=''; renderEditor(id); };
