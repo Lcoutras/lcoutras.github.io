@@ -14,7 +14,7 @@
 <link rel="icon" href="food-icon.svg" type="image/svg+xml">
 <link rel="icon" type="image/png" sizes="180x180" href="food-icon-180.png">
 <script src="config.js?v=3"></script>
-<script src="shim.js?v=7"></script>
+<script src="shim.js?v=8"></script>
 <style>
 [hidden]{display:none!important}
 :root{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
@@ -1089,7 +1089,16 @@ async function recheckClaude(){
   if(!was && state.sample) toast('Claude is switched on');
 }
 $('#refreshBtn').onclick = async () => {
-  const b = $('#refreshBtn'); if(b.disabled) return; b.disabled = true; b.classList.add('spinning');
+  const b = $('#refreshBtn'); if(b.disabled) return;
+  /* Website edition: reload the whole app from the server, skipping the phone's saved copy,
+     so Refresh also picks up any new version of the app. */
+  if(window.RecipeBoxWeb){
+    if(route().name === 'edit' && draft){ toast('Save or cancel this recipe first, then tap Refresh.'); return; }
+    b.disabled = true; b.classList.add('spinning');
+    const u = new URL(location.href); u.searchParams.set('fresh', Date.now().toString(36));
+    location.replace(u.pathname + u.search + u.hash); return;
+  }
+  b.disabled = true; b.classList.add('spinning');
   try{
     await recheckClaude();
     if(state.db && state.me){

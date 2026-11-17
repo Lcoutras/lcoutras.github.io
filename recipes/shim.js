@@ -14,6 +14,8 @@
   const url = new URL(location.href);
   const fromLink = url.searchParams.get('k');
   if(fromLink) LS.set('rb:key', fromLink);
+  /* Refresh adds ?fresh=… to fetch a new copy; tidy it away once loaded */
+  if(url.searchParams.has('fresh')){ url.searchParams.delete('fresh'); history.replaceState(null, '', url.pathname + url.search + url.hash); }
   /* Can this browser keep anything? (Safari's "Block All Cookies", some in-app browsers and
      privacy modes refuse.) If not, the app still works from the key in the link. */
   const STORAGE_OK = (() => { try{ localStorage.setItem('rb:test', '1'); localStorage.removeItem('rb:test'); return true; }catch{ return false; } })();
