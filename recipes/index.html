@@ -2,19 +2,19 @@
 <html lang="en"><head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<title>Family Recipe Box</title>
+<title>Savor</title>
 <meta name="robots" content="noindex,nofollow">
 <meta name="theme-color" content="#121612">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<meta name="apple-mobile-web-app-title" content="Recipes">
+<meta name="apple-mobile-web-app-title" content="Savor">
 <link rel="manifest" href="app.webmanifest">
 <link rel="apple-touch-icon" sizes="180x180" href="food-icon-180.png">
 <link rel="apple-touch-icon" sizes="512x512" href="food-icon-512.png">
 <link rel="icon" href="food-icon.svg" type="image/svg+xml">
 <link rel="icon" type="image/png" sizes="180x180" href="food-icon-180.png">
 <script src="config.js?v=3"></script>
-<script src="shim.js?v=9"></script>
+<script src="shim.js?v=10"></script>
 <style>
 [hidden]{display:none!important}
 :root{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
@@ -437,7 +437,7 @@ details.ingbox summary{cursor:pointer;font-weight:600}
     <div class="toprow">
       <button class="btn small homebtn" id="refreshBtn" type="button" aria-label="Refresh"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 12a8 8 0 1 1-2.34-5.66"/><path d="M20 4v5h-5"/></svg>Refresh</button>
       <button class="btn small homebtn" id="shareBtn" type="button" hidden><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 15V3"/><path d="m7 8 5-5 5 5"/><path d="M5 12v7a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-7"/></svg>Share</button>
-      <div class="brand"><h1><a href="#" class="homelink">Family Recipe Box</a></h1><div class="bookmenu" id="bookWrap" hidden><button class="bookbtn" id="bookBtn" type="button" aria-haspopup="menu" aria-expanded="false" aria-controls="bookMenu"></button><div class="bm" id="bookMenu" role="menu" hidden></div></div><span class="count" id="count"></span></div>
+      <div class="brand"><h1><a href="#" class="homelink">Savor</a></h1><div class="bookmenu" id="bookWrap" hidden><button class="bookbtn" id="bookBtn" type="button" aria-haspopup="menu" aria-expanded="false" aria-controls="bookMenu"></button><div class="bm" id="bookMenu" role="menu" hidden></div></div><span class="count" id="count"></span></div>
       <div class="search" id="searchWrap">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
         <input id="q" type="search" placeholder="Search recipes, ingredients, tags" aria-label="Search recipes">
@@ -896,7 +896,7 @@ function renderTokenJoin(code, token){
 function renderStart(joinCode){
   const has = state.books.length;
   view.innerHTML = `<div class="startwrap">
-    <div class="starthead"><h2>${joinCode ? 'You’ve been invited to a recipe book' : has ? 'Recipe books' : 'Welcome to Family Recipe Box'}</h2>
+    <div class="starthead"><h2>${joinCode ? 'You’ve been invited to a recipe book' : has ? 'Recipe books' : 'Welcome to Savor'}</h2>
       <p>${joinCode ? 'Join it to see and add to that family’s recipes, meal plan and grocery list.' : 'Each family keeps its own recipe book. Start one for your family, or find one by name or invite code.'}</p></div>
     <div class="choose">
       <form class="box" id="joinForm" novalidate><h3>Find a recipe book</h3>
@@ -1065,7 +1065,7 @@ if(window.RecipeBoxWeb && window.RecipeBoxWeb.familyLink){
   const sb = $('#shareBtn'); sb.hidden = false;
   sb.onclick = () => {
     const link = window.RecipeBoxWeb.familyLink();
-    const text = 'Here’s our Family Recipe Box. Open this link to see and add recipes (no account needed):\n' + link;
+    const text = 'Here’s our family recipe book on Savor. Open this link to see and add recipes (no account needed):\n' + link;
     const old = document.getElementById('sharePanel'); if(old) old.remove();
     const d = document.createElement('div'); d.id = 'sharePanel'; d.className = 'sharepanel'; d.setAttribute('role','dialog'); d.setAttribute('aria-label','Share the family link');
     d.innerHTML = `<div class="box"><div style="display:flex;align-items:center;gap:8px"><h3 style="margin-right:auto">Share the family link</h3><button class="x" type="button" id="spX" aria-label="Close">×</button></div>
@@ -1078,7 +1078,7 @@ if(window.RecipeBoxWeb && window.RecipeBoxWeb.familyLink){
     $('#spX').onclick = close;
     $('#spCopy').onclick = async () => { try{ await navigator.clipboard.writeText(link); $('#spCopy').textContent = 'Copied ✓'; }
       catch{ const r = document.createRange(); r.selectNodeContents($('#spLink')); const s = getSelection(); s.removeAllRanges(); s.addRange(r); $('#spCopy').textContent = 'Selected: copy it'; } };
-    if($('#spSend')) $('#spSend').onclick = async () => { try{ await navigator.share({ title: 'Family Recipe Box', text }); }catch{} };
+    if($('#spSend')) $('#spSend').onclick = async () => { try{ await navigator.share({ title: 'Savor', text }); }catch{} };
   };
 }
 /* Book switcher dropdown */
@@ -2140,7 +2140,7 @@ function renderEditor(id){
       await bdoc('recipes/'+rid).set(body);
       if(d._inboxId){ try{ await bdoc('inbox/'+d._inboxId).delete(); }catch{} }
       draft = null; shots = []; photoFile = null;
-      location.hash = 'r-' + rid; toast(id ? 'Changes saved' : 'Saved to the recipe box');
+      location.hash = 'r-' + rid; toast(id ? 'Changes saved' : 'Saved to Savor');
     }catch(err){
       btn.disabled = false;
       const c = err && err.code;

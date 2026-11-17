@@ -1,4 +1,4 @@
-# Family Recipe Box (website edition)
+# Savor — the family recipe book (website edition)
 
 A shared family recipe book: recipes with photos, categories, a weekly meal planner, a grocery list and a cooking mode.
 Served from this repository at `https://lcoutras.github.io/recipes/`.

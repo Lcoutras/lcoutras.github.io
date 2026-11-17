@@ -1,4 +1,4 @@
-/* Family Recipe Box, website edition.
+/* Savor (family recipe book), website edition.
    Gives the app the same storage, people and photo features it had inside Claude,
    backed by a Supabase project. Access is by the family link: the key in the link
    is checked by the database on every read and write. */
@@ -200,9 +200,9 @@
     if(document.getElementById('keyScreen')) return;
     const d = document.createElement('div'); d.id = 'keyScreen'; d.className = 'keyscreen';
     const msg = why === 'bad'
-      ? 'This family link isn’t accepted. It may have been cut off when it was sent, or the family link has changed. Ask whoever invited you to tap <b>Share</b> in the recipe box and send the link again.'
-      : 'This recipe box is private to our family. Open it with the family link: ask whoever invited you to tap <b>Share</b> inside the recipe box and send you the link it shows.';
-    d.innerHTML = '<div class="box"><h2>Family Recipe Box</h2><p>' + msg + ' If you have it, paste it below.</p>'
+      ? 'This family link isn’t accepted. It may have been cut off when it was sent, or the family link has changed. Ask whoever invited you to tap <b>Share</b> in Savor and send the link again.'
+      : 'This recipe book is private to our family. Open it with the family link: ask whoever invited you to tap <b>Share</b> inside Savor and send you the link it shows.';
+    d.innerHTML = '<div class="box"><h2>Savor</h2><p>' + msg + ' If you have it, paste it below.</p>'
       + '<form id="keyForm"><input id="keyIn" class="inp" placeholder="Paste the family link" autocomplete="off" aria-label="Family link"><button class="btn primary" type="submit">Open</button></form></div>';
     document.body.append(d);
     d.querySelector('#keyForm').onsubmit = e => { e.preventDefault(); const v = d.querySelector('#keyIn').value.trim();
@@ -219,7 +219,7 @@
   function askName(){
     if(me.name || !STORAGE_OK || document.getElementById('nameScreen')) return;
     const d = document.createElement('div'); d.id = 'nameScreen'; d.className = 'keyscreen';
-    d.innerHTML = '<form class="box" id="nameForm"><h2>Welcome to the Family Recipe Box</h2><p>What’s your first name? It shows on the recipes you add.</p>'
+    d.innerHTML = '<form class="box" id="nameForm"><h2>Welcome to Savor</h2><p>What’s your first name? It shows on the recipes you add.</p>'
       + '<input id="nameIn" class="inp" maxlength="40" autocomplete="given-name" placeholder="e.g. Sarah" aria-label="Your first name"><button class="btn primary" type="submit">Start</button></form>';
     document.body.append(d); setTimeout(() => d.querySelector('#nameIn').focus(), 50);
     d.querySelector('#nameForm').onsubmit = async e => { e.preventDefault(); const n = d.querySelector('#nameIn').value.trim(); if(!n) return;
