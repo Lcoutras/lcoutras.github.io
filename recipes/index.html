@@ -560,6 +560,8 @@ ol.method li::before{background:var(--accent);color:var(--accent-ink);font-famil
 .mainwrap{min-width:0;overflow-x:clip}
 #view{min-width:0;max-width:100%}
 .inferbar,.sourcelink{max-width:100%;box-sizing:border-box;overflow-wrap:anywhere}
+
+.thumb .bgblur{position:absolute;inset:-12%;width:124%;height:124%;max-width:none;object-fit:cover;filter:blur(22px) brightness(.55);pointer-events:none}
 </style>
 
 <div class="app">
@@ -619,6 +621,8 @@ const imgSrc = r => r && r.photoId ? '/_blob/' + r.photoId : '';
 const posStyle = r => { const q = r && r.photoPos, whole = r && r.photoFit === 'whole'; if(!q && !whole) return '';
   const x = q ? Math.max(0, Math.min(100, +q.x)) : 50, y = q ? Math.max(0, Math.min(100, +q.y)) : 50;
   return ` style="object-position:${isFinite(x)?x:50}% ${isFinite(y)?y:50}%${whole ? ';object-fit:contain' : ''}"`; };
+/* A photo shown whole gets a soft, darkened copy of itself behind it (a real blur, done by CSS) */
+const bgBlur = r => r && r.photoFit === 'whole' && imgSrc(r) ? `<img class="bgblur" src="${esc(imgSrc(r))}" alt="" aria-hidden="true" draggable="false">` : '';
 const mins = m => { m = Number(m)||0; if(!m) return '—'; return m >= 60 ? Math.floor(m/60)+'h'+(m%60?' '+(m%60)+'m':'') : m+' min'; };
 const initials = t => (t||'?').trim().split(/\s+/).slice(0,2).map(w=>w[0]).join('').toUpperCase();
 const byId = id => state.recipes.find(r => r.id === id);
@@ -1429,7 +1433,7 @@ function renderDetail(id){
     ${r.inferred ? `<div class="inferbar">The post didn’t list everything, so Claude filled in the missing ingredients or steps from similar recipes for this dish. Treat amounts as a starting point and adjust to taste.</div>` : ''}
     ${r.needsReview && state.canWrite ? `<div class="reviewbar" id="reviewbar"><span>Claude imported this one. Give it a quick look.</span><a class="btn small" href="#edit-${esc(r.id)}">Edit</a><button class="btn primary small" type="button" id="okBtn">Looks good</button></div>` : ''}
     <section class="hero">
-      <div class="herophoto"><div class="thumb">${imgSrc(r)?`<img src="${esc(imgSrc(r))}" alt="${esc(r.title)}"${posStyle(r)}>`:coverHTML(r, true)}</div>
+      <div class="herophoto"><div class="thumb">${bgBlur(r)}${imgSrc(r)?`<img src="${esc(imgSrc(r))}" alt="${esc(r.title)}"${posStyle(r)}>`:coverHTML(r, true)}</div>
       ${imgSrc(r) && r.photoCredit ? `<small class="credit">Photo: ${esc(r.photoCredit)}</small>` : ''}
       ${!imgSrc(r) && state.canWrite && state.assets ? `<div class="phototools"><a class="btn small" href="${esc(googleImg(r.title))}" target="_blank" rel="noopener">Find a photo on Google ↗</a><label class="btn small" for="addPhoto">Choose a file</label><input id="addPhoto" type="file" accept="image/*" hidden>${pasteBoxHTML('detailPaste')}</div>` : ''}</div>
       <div>
@@ -1638,7 +1642,7 @@ function cardHTML(r, planMode){
   const src = r.author || r.platform || (safeUrl(normUrl(r.sourceUrl)) ? (() => { try{ return new URL(normUrl(r.sourceUrl)).hostname.replace(/^www\./,''); }catch{ return ''; } })() : '') || (r.addedBy ? 'Family recipe' : '');
   const by = r.addedBy ? (isNew(r) ? '<b>NEW</b> · added by ' : 'Added by ') + esc(who(r.addedBy)) : '';
   return `<article class="card${isFeatured(r)?' featured':''}" data-id="${esc(r.id)}" ${planMode && state.canWrite ? 'draggable="true"' : ''} tabindex="0" role="button" aria-label="Open ${esc(r.title||'recipe')}">
-    <div class="thumb photo">${imgSrc(r) ? `<img src="${esc(imgSrc(r))}" alt="" loading="lazy" draggable="false"${posStyle(r)} onerror="this.style.display='none'">` : isFeatured(r) ? featuredCover(r) : coverHTML(r)}
+    <div class="thumb photo">${bgBlur(r)}${imgSrc(r) ? `<img src="${esc(imgSrc(r))}" alt="" loading="lazy" draggable="false"${posStyle(r)} onerror="this.style.display='none'">` : isFeatured(r) ? featuredCover(r) : coverHTML(r)}
       ${state.canWrite ? `<button class="heart" type="button" data-fav="${esc(r.id)}" aria-label="${r.favorite ? 'Remove from favorites' : 'Add to favorites'}" aria-pressed="${!!r.favorite}">${r.favorite ? '♥' : '♡'}</button>` : ''}
       <span class="badge">${r.cooked ? '✓ Cooked &amp; loved' : 'Saved for a delicious day'}</span></div>
     <div class="cbody">${src ? `<span class="source">${esc(src)}</span>` : ''}<h3>${esc(r.title||'Untitled recipe')}</h3>
