@@ -877,7 +877,7 @@ function openBook(id){
   unsubs.push(db.collection(base+'recipes').orderBy('createdAt','desc').onSnapshot(snap => {
     state.recipes = snap.docs.map(d => ({ id: d.id, ...d.data() }));
     if(!snap.metadata.fromCache){ state.loaded = true; state.slow = false; clearTimeout(loadTimer); }
-    resolveNames(); softRender(); }, fail));
+    resolveNames(); softRender(); setTimeout(maybeFill, 1500); }, fail));
   unsubs.push(db.collection(base+'plan').onSnapshot(snap => { state.plan = snap.docs.map(d => ({ id: d.id, ...d.data() })); softRender(); }, ()=>{}));
   unsubs.push(db.collection(base+'inbox').onSnapshot(snap => { state.inbox = snap.docs.map(d => ({ id: d.id, ...d.data() })); softRender(); }, ()=>{}));
   unsubs.push(db.collection(base+'grocery').onSnapshot(snap => { state.grocery = snap.docs.map(d => ({ id: d.id, ...d.data() })); softRender(); }, ()=>{}));
@@ -1430,7 +1430,9 @@ function renderDetail(id){
   const days = Array.from({length:14}, (_,i) => addDays(new Date(), i));
   view.innerHTML = `
     <a class="btn ghost back" href="#">← All recipes</a>
-    ${r.inferred ? `<div class="inferbar">The post didn’t list everything, so Claude filled in the missing ingredients or steps from similar recipes for this dish. Treat amounts as a starting point and adjust to taste.</div>` : ''}
+    ${fillBusy(r) ? `<div class="inferbar" id="fillbar"><span class="spin"></span> Claude is filling in this recipe. It updates here by itself, so you can leave this page.</div>` : ''}
+    ${r.fillStatus === 'failed' ? `<div class="inferbar" id="fillbar">${esc(r.fillError || 'Claude couldn’t fill this one in.')} <button class="btn small" type="button" id="refill">Try again</button></div>` : ''}
+    ${r.inferred && !fillBusy(r) ? `<div class="inferbar">The post didn’t list everything, so Claude filled in the missing ingredients or steps from similar recipes for this dish. Treat amounts as a starting point and adjust to taste.</div>` : ''}
     ${r.needsReview && state.canWrite ? `<div class="reviewbar" id="reviewbar"><span>Claude imported this one. Give it a quick look.</span><a class="btn small" href="#edit-${esc(r.id)}">Edit</a><button class="btn primary small" type="button" id="okBtn">Looks good</button></div>` : ''}
     <section class="hero">
       <div class="herophoto"><div class="thumb">${bgBlur(r)}${imgSrc(r)?`<img src="${esc(imgSrc(r))}" alt="${esc(r.title)}"${posStyle(r)}>`:coverHTML(r, true)}</div>
@@ -1495,6 +1497,7 @@ function renderDetail(id){
   };
   const fb = $('#favBtn'); if(fb) fb.onclick = async () => { fb.disabled = true; try{ await bdoc('recipes/'+id).update({ favorite: !r.favorite }); }catch{ fb.disabled = false; } };
   const cb2 = $('#cookedBtn'); if(cb2) cb2.onclick = async () => { cb2.disabled = true; try{ await bdoc('recipes/'+id).update({ cooked: !r.cooked }); toast(r.cooked ? 'Marked as not cooked yet' : 'Another delicious memory made.'); }catch{ cb2.disabled = false; } };
+  const rf = $('#refill'); if(rf) rf.onclick = async () => { rf.disabled = true; try{ await bdoc('recipes/'+id).update({ fillStatus: 'pending', fillError: '' }); fillLater(id, { ...r, fillStatus: 'pending' }); }catch{ rf.disabled = false; } };
   const fm = $('#fillMissing'); if(fm) fm.onclick = async () => {
     fm.disabled = true; $('#fillmsg').innerHTML = '<span class="msg"><span class="spin"></span> Working it out…</span>';
     try{ const pb = r.photoId ? await blobFromAsset(r.photoId) : null;
@@ -1648,7 +1651,7 @@ function cardHTML(r, planMode){
     <div class="cbody">${src ? `<span class="source">${esc(src)}</span>` : ''}<h3>${esc(r.title||'Untitled recipe')}</h3>
       <div class="stats">${t ? `<span>◷ ${mins(t)}</span>` : ''}${r.nutrition && r.nutrition.calories ? `<span>◉ ~${Math.round(r.nutrition.calories)} kcal</span>` : ''}${r.servings ? `<span>◎ Serves ${esc(r.servings)}</span>` : ''}</div>
       ${tags.length ? `<div class="ctags">${tags.map(x => `<span class="tag">${esc(x)}</span>`).join('')}</div>` : ''}
-      ${r.needsReview || r.inferred ? `<div class="flags">${r.needsReview ? '<span class="review">Check me</span>' : ''}${r.inferred ? '<span class="src strong">Filled in by Claude</span>' : ''}</div>` : ''}
+      ${r.needsReview || r.inferred || fillBusy(r) || r.fillStatus === 'failed' ? `<div class="flags">${fillBusy(r) ? '<span class="src strong"><span class="spin"></span> Filling in…</span>' : r.fillStatus === 'failed' ? '<span class="review">Couldn’t fill in</span>' : (r.needsReview ? '<span class="review">Check me</span>' : '')}${r.inferred && !fillBusy(r) ? '<span class="src strong">Filled in by Claude</span>' : ''}</div>` : ''}
       ${by ? `<div class="by">${by}</div>` : ''}
       ${planMode && state.canWrite ? `<button class="btn small planit" type="button" data-planit="${esc(r.id)}">+ Plan</button>` : ''}</div></article>`;
 }
@@ -1893,6 +1896,52 @@ function toFields(out){
     ingredients: Array.isArray(out.ingredients) ? out.ingredients.map(String).filter(Boolean) : [], steps: Array.isArray(out.steps) ? out.steps.map(String).filter(Boolean) : [],
     tags: facetTags(out), inferred: !!out.inferred, notes: String(out.notes||''), sourceUrl: safeUrl(String(out.sourceUrl||'')), basedOn: basedOnList(out), nutrition: nu && (nu.calories||nu.protein) ? nu : null };
 }
+/* ---------- save first, fill in later ----------
+   The recipe is saved at once with just the link and title. Claude then writes a quick draft, the
+   researched version and a photo, updating the saved recipe as each one is ready. Any device that
+   opens the book picks up a recipe whose fill-in was interrupted. */
+const filling = new Set();
+const fillBusy = r => r && (r.fillStatus === 'pending' || r.fillStatus === 'working' || r.fillStatus === 'draft');
+async function fillLater(id, seed){
+  if(filling.has(id) || !state.canWrite || !state.sample) return;
+  const r0 = seed || byId(id); if(!r0 || !fillBusy(r0)) return;
+  if(!seed && r0.fillStatus !== 'pending' && Date.now() - (r0.fillClaim || 0) < 150000) return;  /* someone is on it */
+  filling.add(id);
+  const up = patch => bdoc('recipes/'+id).update({ ...patch, updatedAt: Date.now() });
+  const dish = r0.title, url = r0.sourceUrl || '', cap = r0.fillCaption || '';
+  let fail = '', ourPhoto = '', wrote = '';
+  try{
+    await up({ fillStatus: 'working', fillClaim: Date.now(), fillError: '' });
+    const full = askClaude(recipePrompt(url, cap, 0, 0, dish), []); full.catch(() => {});
+    const early = canFindPhotos() && url && state.assets ? window.RecipeBoxWeb.findPhotos(photoPages({ sourceUrl: url }), dish).catch(() => []) : null;
+    const photoFrom = async list => { if(!list || !list.length || !state.assets) return;
+      const cur = byId(id); if(cur && cur.photoId && cur.photoId !== ourPhoto) return;   /* the person added their own */
+      const a = await state.assets.upload(await fitPhoto(list[0].blob, list[0].fit === 'whole')); ourPhoto = a.id;
+      await up({ photoId: a.id, photoCredit: list[0].site, photoFit: null, photoPos: null }); };
+    const fields = (out, keepEdits) => { const f = toFields(out); const cur = byId(id) || {};
+      const patch = { basedOn: f.basedOn, tags: f.tags, notes: f.notes, inferred: f.inferred, nutrition: f.nutrition };
+      for(const k of ['servings','prepMinutes','cookMinutes']) if(f[k]) patch[k] = f[k];
+      if(f.author) patch.author = f.author;
+      const untouched = !(cur.ingredients || []).length || JSON.stringify(cur.ingredients) === wrote;
+      if(!keepEdits || untouched){ if(f.ingredients.length) patch.ingredients = f.ingredients; if(f.steps.length) patch.steps = f.steps; }
+      return patch; };
+    /* 1) the quick draft */
+    if(state.webResearch){
+      const dr = await askDraft(dish, url, cap, []).catch(() => null);
+      if(dr && !dr.error){ const f = toFields(dr); wrote = JSON.stringify(f.ingredients);
+        await up({ ...fields(dr, false), notes: '', fillStatus: 'draft', fillClaim: Date.now() });
+        if(early) try{ await photoFrom(await early); }catch{} } }
+    /* 2) the researched recipe */
+    const out = await full;
+    if(!out || out.error){ if(!wrote) fail = (out && out.error) || 'Claude couldn’t tell what dish this is. Edit the title to be more specific.'; }
+    else { await up({ ...fields(out, true), fillClaim: Date.now() });
+      if(canFindPhotos() && state.assets){ try{ const cur = byId(id) || {}; if(!cur.photoId || cur.photoId === ourPhoto) await photoFrom(await window.RecipeBoxWeb.findPhotos(photoPages({ ...r0, basedOn: out.basedOn }), dish)); }catch{} } }
+  }catch(e){ fail = claudeErr(e); }
+  try{ await up(fail ? { fillStatus: 'failed', fillError: fail } : { fillStatus: 'done', fillError: '' }); }catch{}
+  filling.delete(id);
+}
+function maybeFill(){ if(!state.loaded || !state.canWrite || !state.sample) return; for(const r of state.recipes || []) if(fillBusy(r)) fillLater(r.id); }
+setInterval(maybeFill, 30000);
 async function saveImported(f, { sourceUrl, photoBlob, photoId } = {}){
   let pid = photoId || '';
   if(!pid && photoBlob && state.assets){ try{ pid = (await state.assets.upload(photoBlob)).id; }catch{} }
@@ -2147,7 +2196,7 @@ function renderEditor(id){
         <input id="f-shots" type="file" accept="image/*,video/*" multiple hidden>
         <small>To get a video: use the app’s Download or Save option, or screen-record the post while it plays.</small>
         <div class="shots" id="shots"></div><span id="vidmsg"></span></div>` : ''}` : ''}
-      <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap"><button class="btn primary" type="button" id="read">${d._filled ? 'Read it again' : 'Get the recipe'}</button><span id="readmsg">${d._readMsg||''}</span>
+      <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap"><button class="btn primary" type="button" id="read">${d._filled ? 'Read it again' : 'Get the recipe'}</button>${!d._filled ? '<button class="btn" type="button" id="saveLater" title="Saves the link now. Claude fills in the recipe and photo in the background.">Save now, fill in later</button>' : ''}<span id="readmsg">${d._readMsg||''}</span>
         ${!d._needHelp ? '<button class="btn ghost small" type="button" id="moreHelp">Add a caption or screenshots</button>' : ''}</div>
     </section>` : ''}
     <section class="box" ${showForm?'':'hidden'}>
@@ -2359,6 +2408,23 @@ function renderEditor(id){
       $('#sugmsg').innerHTML = '<span class="msg">Filled in from similar recipes. Check it over, then save.</span>';
     }catch(e){ m.innerHTML = '<span class="msg err">'+esc(claudeErr(e))+'</span>'; }
     finally{ const b=$('#suggest'); if(b) b.disabled=false; }
+  };
+
+  /* Save the link and title now; Claude fills in the rest in the background */
+  const slBtn = $('#saveLater');
+  if(slBtn) slBtn.onclick = async () => {
+    sync(); const msg = $('#readmsg');
+    if(!d._dish){ msg.innerHTML = '<span class="msg err">Type the dish’s title.</span>'; $('#f-dish').focus(); return; }
+    if(shots.length){ msg.innerHTML = '<span class="msg err">Claude has to read screenshots now. Tap Get the recipe instead.</span>'; return; }
+    slBtn.disabled = true;
+    try{
+      const url = normUrl(d.sourceUrl), rid = newId('r');
+      const doc = { title: d._dish, sourceUrl: url, platform: platform(url), author: '', ingredients: [], steps: [], tags: [], cookbooks: [], notes: '', photoId: '', needsReview: true,
+        fillStatus: 'pending', fillCaption: String(d._caption||'').slice(0, 3000), addedBy: state.me||'', createdAt: Date.now(), updatedAt: Date.now() };
+      await bdoc('recipes/'+rid).set(doc);
+      draft = null; toast('Saved. Claude is filling it in…'); location.hash = '';
+      fillLater(rid, { id: rid, ...doc });
+    }catch(e){ slBtn.disabled = false; msg.innerHTML = '<span class="msg err">Couldn’t save ('+esc(e.code||'error')+'). Try again.</span>'; }
   };
 
   /* Claude reads the post */
