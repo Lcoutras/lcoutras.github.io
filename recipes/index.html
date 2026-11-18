@@ -589,7 +589,7 @@ ol.method li::before{background:var(--accent);color:var(--accent-ink);font-famil
   <div id="sideBooks"></div>
   <button class="collection textbtn" type="button" id="sideNewColl">＋ New collection</button>
   <div class="profile"><span class="avatar" id="avatar" aria-hidden="true">✳</span><div><span id="profName">Our kitchen</span><br><small>Your family cookbook</small></div></div>
-  <div class="buildstamp" id="buildStamp">Version Nov 18, 09:04 UTC</div>
+  <div class="buildstamp" id="buildStamp">Version Nov 18, 09:13 UTC</div>
 </aside>
 <div class="mainwrap">
   <header class="top">
@@ -1973,7 +1973,8 @@ const fillBusy = r => r && (r.fillStatus === 'pending' || r.fillStatus === 'work
 async function fillLater(id, seed){
   if(filling.has(id) || !state.canWrite || !state.sample) return;
   const r0 = seed || byId(id); if(!r0 || !fillBusy(r0)) return;
-  if(!seed && r0.fillStatus !== 'pending' && Date.now() - (r0.fillClaim || 0) < 150000) return;  /* someone is on it */
+  /* someone is on it: the device that just saved gets 25 s to start, then a started fill is left alone for 2½ minutes */
+  if(!seed && (r0.fillStatus === 'pending' ? Date.now() - (r0.createdAt || 0) < 25000 : Date.now() - (r0.fillClaim || 0) < 150000)) return;
   filling.add(id);
   const up = patch => bdoc('recipes/'+id).update({ ...patch, updatedAt: Date.now() });
   const dish = r0.title, url = r0.sourceUrl || '', cap = r0.fillCaption || '';
