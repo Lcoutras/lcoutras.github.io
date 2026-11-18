@@ -569,6 +569,8 @@ ol.method li::before{background:var(--accent);color:var(--accent-ink);font-famil
 .approvebar .row{display:flex;gap:8px;flex-wrap:wrap}
 .was{margin-top:8px;font-size:.85rem;color:var(--muted)}.was summary{cursor:pointer}.was ul{margin:6px 0 0 18px;padding:0}.was p{margin:6px 0 0}
 .wasnum{display:block;color:var(--muted);font-size:.72rem;margin-top:2px}
+
+.buildstamp{margin:10px 4px 0;font-size:.68rem;color:var(--muted);opacity:.8}
 </style>
 
 <div class="app">
@@ -587,6 +589,7 @@ ol.method li::before{background:var(--accent);color:var(--accent-ink);font-famil
   <div id="sideBooks"></div>
   <button class="collection textbtn" type="button" id="sideNewColl">＋ New collection</button>
   <div class="profile"><span class="avatar" id="avatar" aria-hidden="true">✳</span><div><span id="profName">Our kitchen</span><br><small>Your family cookbook</small></div></div>
+  <div class="buildstamp" id="buildStamp">Version Nov 18, 09:04 UTC</div>
 </aside>
 <div class="mainwrap">
   <header class="top">
@@ -1319,6 +1322,7 @@ function header(){
   const dark = document.documentElement.dataset.theme === 'dark' || (!document.documentElement.dataset.theme && matchMedia('(prefers-color-scheme: dark)').matches);
   const tb = $('#themeBtn'); tb.textContent = dark ? '☀ Light mode' : '☾ Dark mode'; tb.setAttribute('aria-pressed', String(dark));
 }
+(() => { const b = document.getElementById('buildStamp'); if(b && /^__/.test(b.textContent)) b.hidden = true; })();
 function render(){
   header();
   const r = route();
@@ -1951,12 +1955,16 @@ async function applyAgentChanges(id, f, { mark, extra } = {}){
 }
 /* The person saved while Claude was still researching: when it arrives, update the saved recipe and flag it */
 async function lateResearch(rid, full){
-  try{ const real = await full; if(!real || real.error) return;
-    let cur = null; for(let i = 0; i < 25 && !cur; i++){ cur = byId(rid); if(!cur) await sleep(300); } if(!cur) return;
+  const done = patch => bdoc('recipes/'+rid).update({ fillClaim: Date.now(), ...patch }).catch(() => {});
+  try{ const real = await full;
+    if(!real || real.error){ await done({ fillStatus: 'failed', researchOnly: true, fillError: 'The researched version couldn’t be added. Your saved recipe is unchanged.' }); return; }
+    let cur = null; for(let i = 0; i < 25 && !cur; i++){ cur = byId(rid); if(!cur) await sleep(300); }
+    if(!cur){ await done({ fillStatus: 'failed', researchOnly: true, fillError: 'The researched version couldn’t be added. Try again.' }); return; }
     await applyAgentChanges(rid, toFields(real), { mark: true });
     if(canFindPhotos() && state.assets && !cur.photoId){ try{ const list = await window.RecipeBoxWeb.findPhotos(photoPages({ ...cur, basedOn: real.basedOn }), cur.title);
       if(list.length && !(byId(rid)||{}).photoId){ const a = await state.assets.upload(await fitPhoto(list[0].blob, list[0].fit === 'whole')); await bdoc('recipes/'+rid).update({ photoId: a.id, photoCredit: list[0].site, photoFit: null, photoPos: null }); } }catch{} }
-  }catch{}
+    await done({ fillStatus: 'done', fillError: '', researchOnly: false });
+  }catch(e){ await done({ fillStatus: 'failed', researchOnly: true, fillError: claudeErr(e) }); }
 }
 const seenMarked = new Set();
 function markSeen(r){ if(r && fillBusy(r) && !r.seenWhileFilling && state.canWrite && !seenMarked.has(r.id)){ seenMarked.add(r.id); bdoc('recipes/'+r.id).update({ seenWhileFilling: true }).catch(() => {}); } }
@@ -1971,11 +1979,12 @@ async function fillLater(id, seed){
   const dish = r0.title, url = r0.sourceUrl || '', cap = r0.fillCaption || '';
   let fail = '', ourPhoto = '', wrote = '';
   try{
-    const hit = !cap.trim() ? findReuse(url, id) : null;
+    const researchOnly = !!r0.researchOnly;
+    const hit = !cap.trim() && !researchOnly ? findReuse(url, id) : null;
     if(hit){ const f = reuseFields(hit); delete f.author; await up({ ...f, notes: f.notes, fillStatus: 'done', fillError: '', reusedFrom: hit.title || '' }); filling.delete(id); return; }
     await up({ fillStatus: 'working', fillClaim: Date.now(), fillError: '' });
     const full = askClaude(recipePrompt(url, cap, 0, 0, dish), []); full.catch(() => {});
-    const early = canFindPhotos() && url && state.assets ? window.RecipeBoxWeb.findPhotos(photoPages({ sourceUrl: url }), dish).catch(() => []) : null;
+    const early = !researchOnly && canFindPhotos() && url && state.assets ? window.RecipeBoxWeb.findPhotos(photoPages({ sourceUrl: url }), dish).catch(() => []) : null;
     const photoFrom = async list => { if(!list || !list.length || !state.assets) return;
       const cur = byId(id); if(cur && cur.photoId && cur.photoId !== ourPhoto) return;   /* the person added their own */
       const a = await state.assets.upload(await fitPhoto(list[0].blob, list[0].fit === 'whole')); ourPhoto = a.id;
@@ -1988,18 +1997,18 @@ async function fillLater(id, seed){
       if(!keepEdits || untouched){ if(f.ingredients.length) patch.ingredients = f.ingredients; if(f.steps.length) patch.steps = f.steps; }
       return patch; };
     /* 1) the quick draft */
-    if(state.webResearch){
+    if(state.webResearch && !researchOnly){
       const dr = await askDraft(dish, url, cap, []).catch(() => null);
       if(dr && !dr.error){ const f = toFields(dr); wrote = JSON.stringify(f.ingredients);
         await up({ ...fields(dr, false), notes: '', fillStatus: 'draft', fillClaim: Date.now() });
         if(early) try{ await photoFrom(await early); }catch{} } }
     /* 2) the researched recipe */
     const out = await full;
-    if(!out || out.error){ if(!wrote) fail = (out && out.error) || 'Claude couldn’t tell what dish this is. Edit the title to be more specific.'; }
-    else { await applyAgentChanges(id, toFields(out), { mark: !!(byId(id) || {}).seenWhileFilling, extra: { fillClaim: Date.now() } });
+    if(!out || out.error){ if(!wrote && !researchOnly) fail = (out && out.error) || 'Claude couldn’t tell what dish this is. Edit the title to be more specific.'; }
+    else { await applyAgentChanges(id, toFields(out), { mark: researchOnly || !!(byId(id) || {}).seenWhileFilling, extra: { fillClaim: Date.now() } });
       if(canFindPhotos() && state.assets){ try{ const cur = byId(id) || {}; if(!cur.photoId || cur.photoId === ourPhoto) await photoFrom(await window.RecipeBoxWeb.findPhotos(photoPages({ ...r0, basedOn: out.basedOn }), dish)); }catch{} } }
   }catch(e){ fail = claudeErr(e); }
-  try{ await up(fail ? { fillStatus: 'failed', fillError: fail } : { fillStatus: 'done', fillError: '' }); }catch{}
+  try{ await up(fail ? { fillStatus: 'failed', fillError: fail } : { fillStatus: 'done', fillError: '', researchOnly: false }); }catch{}
   filling.delete(id);
 }
 function maybeFill(){ if(!state.loaded || !state.canWrite || !state.sample) return; for(const r of state.recipes || []) if(fillBusy(r)) fillLater(r.id); }
@@ -2560,6 +2569,7 @@ function renderEditor(id){
       if(existing){ for(const k of ['favorite','cooked']) if(existing[k] != null) body[k] = existing[k]; }
       const rid = id || newId('r');
       const lateFull = d._full && !d._fullDone ? d._full : null;
+      if(lateFull) Object.assign(body, { fillStatus: 'working', fillClaim: Date.now(), seenWhileFilling: true, researchOnly: true, fillCaption: String(d._caption||'').slice(0, 3000) });
       await bdoc('recipes/'+rid).set(body);
       if(lateFull) lateResearch(rid, lateFull);
       if(d._inboxId){ try{ await bdoc('inbox/'+d._inboxId).delete(); }catch{} }
