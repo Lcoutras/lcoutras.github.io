@@ -14,7 +14,7 @@
 <link rel="icon" href="food-icon.svg" type="image/svg+xml">
 <link rel="icon" type="image/png" sizes="180x180" href="food-icon-180.png">
 <script src="config.js?v=3"></script>
-<script src="shim.js?v=12"></script>
+<script src="shim.js?v=13"></script>
 <style>
 [hidden]{display:none!important}
 :root{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
@@ -2059,16 +2059,20 @@ async function fitPhoto(blob, whole){
 window.savorFitPhoto = fitPhoto;
 /* Use a photo the finder picked, with the fit Claude chose for it */
 const usePick = (d, pk) => { photoFile = pk.blob; d.photoCredit = pk.site; d._crop = { zoom: 1, cx: 0.5, cy: 0.5, whole: pk.fit === 'whole' }; d._cropDirty = true; };
-async function autoPhotoFor(id){
+async function autoPhotoFor(id, early){
   if(!canFindPhotos() || !draft) return;
   const d = draft;
   if(photoFile || d.photoId || (shots.length && d._cover !== -1) || !photoPages(d).length) return;
   d._photoBusy = true; const n = $('#photoNote'); if(n) n.textContent = 'Looking at the photos on the recipe pages and picking the best one…';
   try{
+    /* The post's own picture was already being fetched while the recipe was written: show it at once */
+    if(early){ const e = await early; if(draft !== d) return;
+      if(e && e.length && !photoFile && !d.photoId){ d._photoPicks = e; usePick(d, e[0]); d._autoPick = e[0].blob; if(route().name === 'edit') renderEditor(id); } }
+    /* then look at the recipe pages too, and switch to the best of all of them (unless the person already chose) */
     const list = await window.RecipeBoxWeb.findPhotos(photoPages(d), d.title || d._dish);
     if(draft !== d) return;
-    d._photoPicks = list;
-    if(list.length && !photoFile && !d.photoId) usePick(d, list[0]);
+    if(list.length){ d._photoPicks = list;
+      if((!photoFile && !d.photoId) || (d._autoPick && photoFile === d._autoPick)){ usePick(d, list[0]); d._autoPick = list[0].blob; } }
   }catch{} finally{ d._photoBusy = false; }
   if(draft === d && route().name === 'edit') renderEditor(id);
 }
@@ -2335,9 +2339,12 @@ function renderEditor(id){
   if(readBtn) readBtn.onclick = async () => {
     sync(); const msg = $('#readmsg');
     if(!d._dish){ msg.innerHTML = '<span class="msg err">Type the dish’s title.</span>'; $('#f-dish').focus(); return; }
-    readBtn.disabled = true; msg.innerHTML = '<span class="msg"><span class="spin"></span> '+(state.webResearch ? 'Searching the web and writing the recipe… this can take up to a minute' : 'Reading the recipe…')+'</span>';
+    readBtn.disabled = true; msg.innerHTML = '<span class="msg"><span class="spin"></span> '+(state.webResearch ? 'Searching the web and writing the recipe… about 15 to 20 seconds' : 'Reading the recipe…')+'</span>';
     const nVid = shots.filter(s=>s.video).length;
     const prompt = recipePrompt(d.sourceUrl, d._caption, shots.length, nVid, d._dish || (d._filled ? d.title : ''));
+    /* Start on the photo right away, in parallel with the recipe */
+    const early = canFindPhotos() && d.sourceUrl && !photoFile && !d.photoId && !shots.length
+      ? window.RecipeBoxWeb.findPhotos(photoPages({ sourceUrl: d.sourceUrl }), d._dish).catch(() => []) : null;
     try{
       const out = await askClaude(prompt, shots.map(s=>s.blob));
       if(!out || out.error){
@@ -2357,7 +2364,7 @@ function renderEditor(id){
       d.basedOn = basedOnList(out);
       if(out.coverImage!=null && shots.length){ const ci = Number(out.coverImage); d._cover = ci>=1 && ci<=shots.length ? ci-1 : -1; }
       d._readMsg = '<span class="msg">'+(d.inferred ? 'The post didn’t list everything, so Claude filled the gaps from similar recipes. See Notes, check it over below, then save.' : 'Got it. Check it over below, then save.')+'</span>';
-      renderEditor(id); autoPhotoFor(id);
+      renderEditor(id); autoPhotoFor(id, early);
     }catch(e){ msg.innerHTML = '<span class="msg err">'+esc(claudeErr(e))+' Or fill it in by hand.</span>'; }
     finally{ const b=$('#read'); if(b) b.disabled=false; }
   };

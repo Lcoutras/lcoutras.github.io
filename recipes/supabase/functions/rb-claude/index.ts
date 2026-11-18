@@ -138,7 +138,7 @@ Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: CORS });
   if (req.method !== "POST") return reply(405, { code: "invalid_argument", message: "POST only" });
 
-  let body: { k?: string; prompt?: string; images?: { media_type: string; data: string }[]; ping?: boolean; web?: boolean; photos?: string[]; dish?: string };
+  let body: { k?: string; prompt?: string; images?: { media_type: string; data: string }[]; ping?: boolean; web?: boolean; photos?: string[]; dish?: string; effort?: string; maxSearch?: number; maxFetch?: number; nudge?: boolean };
   try { body = await req.json(); } catch { return reply(400, { code: "invalid_argument", message: "Bad JSON" }); }
 
   if (!(await keyOk(String(body.k || "")))) return reply(401, { code: "not_granted", message: "Family key not accepted" });
@@ -161,8 +161,10 @@ Deno.serve(async (req: Request) => {
 
   // Recipe lookups get web search (find real recipes for the dish) and web fetch (read the
   // linked page or a search result). Facebook, TikTok and Instagram block outside readers.
+  const t0 = Date.now();
+  const lim = (v: unknown, d: number) => { const n = Number(v); return Number.isFinite(n) ? Math.min(d, Math.max(1, Math.round(n))) : d; };
   const tools = body.web
-    ? [{ type: "web_search_20260209", name: "web_search", max_uses: 5 }, { type: "web_fetch_20260209", name: "web_fetch", max_uses: 4 }]
+    ? [{ type: "web_search_20260209", name: "web_search", max_uses: lim(body.maxSearch, 5) }, { type: "web_fetch_20260209", name: "web_fetch", max_uses: lim(body.maxFetch, 4) }]
     : undefined;
   // For lookups, research is the job: without this, Claude sometimes answers from memory.
   const system = tools
@@ -177,7 +179,7 @@ Deno.serve(async (req: Request) => {
       response = await client.beta.messages.create({
         model: MODEL,
         max_tokens: 16000,
-        output_config: { effort: "medium" },
+        output_config: { effort: body.effort === "low" ? "low" : "medium" },
         betas: ["server-side-fallback-2026-07-01"],
         fallbacks: "default",
         ...(system ? { system } : {}),
@@ -193,7 +195,7 @@ Deno.serve(async (req: Request) => {
         continue;
       }
       // Answered without researching: send it back once to search before we accept the answer.
-      if (tools && !searched && !nudged && response.stop_reason === "end_turn") {
+      if (tools && body.nudge !== false && !searched && !nudged && response.stop_reason === "end_turn") {
         nudged = true;
         messages.push({ role: "assistant", content: response.content as Anthropic.Beta.BetaContentBlockParam[] });
         messages.push({ role: "user", content: "You answered without searching. Use web_search now to find two or three real published recipes for this dish (and the creator's own recipe if it exists), read the best one with web_fetch, then send the complete JSON again based on what you found, with basedOn listing those pages." });
@@ -201,7 +203,7 @@ Deno.serve(async (req: Request) => {
       }
       break;
     }
-    console.log(JSON.stringify({ web: !!tools, searched, fetched, nudged, stop: response?.stop_reason }));
+    console.log(JSON.stringify({ web: !!tools, searched, fetched, nudged, stop: response?.stop_reason, ms: Date.now() - t0 }));
     if (!response) return reply(500, { code: "unavailable", message: "No answer" });
     if (response.stop_reason === "refusal") {
       return reply(422, { code: "refused", message: "Claude declined this request." });
