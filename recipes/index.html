@@ -1900,6 +1900,20 @@ function toFields(out){
    The recipe is saved at once with just the link and title. Claude then writes a quick draft, the
    researched version and a photo, updating the saved recipe as each one is ready. Any device that
    opens the book picks up a recipe whose fill-in was interrupted. */
+/* ---------- reuse an earlier lookup ----------
+   The same link is never researched twice: if a recipe from it is already filled in, its details are copied. */
+const linkKey = u => { try{ const x = new URL(normUrl(u)); const drop = /^(utm_|fbclid|mibextid|igsh|igshid|si$|is$|feature$|ref$|s$|t$|share)/i;
+  const q = [...x.searchParams.entries()].filter(([k]) => !drop.test(k)).sort().map(([k,v]) => k+'='+v).join('&');
+  return x.hostname.replace(/^www\./,'').toLowerCase() + x.pathname.replace(/\/+$/,'').toLowerCase() + (q ? '?'+q : ''); }catch{ return ''; } };
+function findReuse(url, exceptId){
+  const k = linkKey(url); if(!k) return null;
+  return (state.recipes || []).filter(r => r.id !== exceptId && !fillBusy(r) && r.fillStatus !== 'failed' && (r.ingredients||[]).length && linkKey(r.sourceUrl) === k)
+    .sort((a, b) => (b.updatedAt||0) - (a.updatedAt||0))[0] || null;
+}
+const reuseFields = r => { const f = { ingredients: r.ingredients||[], steps: r.steps||[], tags: r.tags||[], notes: r.notes||'', inferred: !!r.inferred, basedOn: r.basedOn||[], nutrition: r.nutrition||null };
+  for(const k of ['servings','prepMinutes','cookMinutes','author']) if(r[k]) f[k] = r[k];
+  if(r.photoId){ f.photoId = r.photoId; f.photoCredit = r.photoCredit || ''; f.photoFit = r.photoFit || null; f.photoPos = r.photoPos || null; }
+  return f; };
 const filling = new Set();
 const fillBusy = r => r && (r.fillStatus === 'pending' || r.fillStatus === 'working' || r.fillStatus === 'draft');
 async function fillLater(id, seed){
@@ -1911,6 +1925,8 @@ async function fillLater(id, seed){
   const dish = r0.title, url = r0.sourceUrl || '', cap = r0.fillCaption || '';
   let fail = '', ourPhoto = '', wrote = '';
   try{
+    const hit = !cap.trim() ? findReuse(url, id) : null;
+    if(hit){ const f = reuseFields(hit); delete f.author; await up({ ...f, notes: f.notes, fillStatus: 'done', fillError: '', reusedFrom: hit.title || '' }); filling.delete(id); return; }
     await up({ fillStatus: 'working', fillClaim: Date.now(), fillError: '' });
     const full = askClaude(recipePrompt(url, cap, 0, 0, dish), []); full.catch(() => {});
     const early = canFindPhotos() && url && state.assets ? window.RecipeBoxWeb.findPhotos(photoPages({ sourceUrl: url }), dish).catch(() => []) : null;
@@ -2248,6 +2264,7 @@ function renderEditor(id){
   };
   form.addEventListener('input', sync);
   form.addEventListener('input', () => { d._touched = true; });
+  const lf = $('#lookFresh'); if(lf) lf.onclick = () => { sync(); d._noReuse = true; d._filled = false; d.photoId = (d.photoId && existing && existing.photoId === d.photoId) ? d.photoId : ''; renderEditor(id); const rb = $('#read'); if(rb) rb.click(); };
   const ur = $('#useResearch'); if(ur) ur.onclick = () => { sync(); if(d._research){ applyReadOut(d, d._research, false); d._research = null; d._touched = false; renderEditor(id); autoPhotoFor(id); } };
   const coverIdx = () => { const i = d._cover==null ? 0 : d._cover; return i>=0 && i<shots.length ? i : -1; };
   const drawPreview = () => { const p = $('#pprev'), n = $('#photoNote'); if(!p) return; p.innerHTML = '';
@@ -2432,6 +2449,13 @@ function renderEditor(id){
   if(readBtn) readBtn.onclick = async () => {
     sync(); const msg = $('#readmsg');
     if(!d._dish){ msg.innerHTML = '<span class="msg err">Type the dish’s title.</span>'; $('#f-dish').focus(); return; }
+    const hit = !d._noReuse && !shots.length && !(d._caption||'').trim() ? findReuse(d.sourceUrl) : null;
+    if(hit){ const f = reuseFields(hit);
+      d._filled = true; d.title = d._dish || d.title || hit.title; Object.assign(d, { ingredients: f.ingredients.slice(), steps: f.steps.slice(), tags: f.tags.slice(), notes: f.notes, inferred: f.inferred, basedOn: f.basedOn.slice(), nutrition: f.nutrition });
+      for(const k of ['servings','prepMinutes','cookMinutes','author']) if(f[k]) d[k] = f[k];
+      if(f.photoId && !photoFile && !d.photoId){ d.photoId = f.photoId; d.photoCredit = f.photoCredit; d.photoFit = f.photoFit; d.photoPos = f.photoPos; }
+      d._readMsg = '<span class="msg">Already looked up: reused the details from “'+esc(hit.title||'this recipe')+'”, saved earlier from the same link. <button class="btn small" type="button" id="lookFresh">Look it up again</button></span>';
+      renderEditor(id); return; }
     readBtn.disabled = true; msg.innerHTML = '<span class="msg"><span class="spin"></span> '+(state.webResearch ? 'Searching the web and writing the recipe… about 15 to 20 seconds' : 'Reading the recipe…')+'</span>';
     const nVid = shots.filter(s=>s.video).length;
     const prompt = recipePrompt(d.sourceUrl, d._caption, shots.length, nVid, d._dish || (d._filled ? d.title : ''));
