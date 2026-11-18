@@ -80,18 +80,31 @@ const b64 = (bytes: Uint8Array) => { let s = ""; for (let i = 0; i < bytes.lengt
 type Photo = { page: string; site: string; media_type: string; data: string; w: number; h: number; fit: "fill" | "whole"; chosenBy?: string };
 // Without Claude: prefer pictures close to the card's 4:3 shape and large enough to look sharp.
 const shapeScore = (p: Photo) => -Math.abs(Math.log((p.w / p.h) / (4 / 3))) + Math.min(p.w, 1600) / 4000;
+// YouTube pages can't be read, but every video's own thumbnail sits at a fixed address.
+const ytId = (u: URL): string | null => {
+  const h = u.hostname.toLowerCase().replace(/^(www|m|music)\./, "");
+  let id: string | null = null;
+  if (h === "youtu.be") id = u.pathname.slice(1).split("/")[0];
+  else if (h === "youtube.com") { if (u.pathname === "/watch") id = u.searchParams.get("v"); else { const m = u.pathname.match(/^\/(shorts|embed|live)\/([\w-]+)/); if (m) id = m[2]; } }
+  return id && /^[\w-]{6,15}$/.test(id) ? id : null;
+};
 async function findPhotos(urls: string[], apiKey?: string, dish?: string): Promise<Photo[]> {
   const pages = [...new Set(urls)].map(safePage).filter((x): x is URL => !!x).slice(0, 5);
   const perPage = await Promise.all(pages.map(async (page) => {
-    const html = await fetchLimited(page, 2_000_000, "text/html");
-    if (!html || !/html/.test(html.type)) return [];
-    const imgs = imagesFromHtml(new TextDecoder().decode(html.bytes), html.url || page.toString()).map(safePage).filter((x): x is URL => !!x).slice(0, 3);
+    const yt = ytId(page);
+    let imgs: URL[];
+    if (yt) imgs = ["maxresdefault", "hq720", "sddefault"].map((n) => safePage(`https://i.ytimg.com/vi/${yt}/${n}.jpg`)).filter((x): x is URL => !!x);
+    else {
+      const html = await fetchLimited(page, 2_000_000, "text/html");
+      if (!html || !/html/.test(html.type)) return [];
+      imgs = imagesFromHtml(new TextDecoder().decode(html.bytes), html.url || page.toString()).map(safePage).filter((x): x is URL => !!x).slice(0, 3);
+    }
     const got = await Promise.all(imgs.map(async (iu) => {
       const img = await fetchLimited(iu, 3_500_000, "image/*");
       if (!img || !/^image\/(jpeg|png|webp|gif)$/.test(img.type) || img.bytes.length < 5000) return null;
       const sz = imageSize(img.bytes); if (!sz || sz.w < 300 || sz.h < 200) return null;
       const ratio = sz.w / sz.h;
-      return { page: page.toString(), site: page.hostname.replace(/^www\./, ""), media_type: img.type, data: b64(img.bytes), w: sz.w, h: sz.h,
+      return { page: page.toString(), site: yt ? "youtube.com" : page.hostname.replace(/^www\./, ""), media_type: img.type, data: b64(img.bytes), w: sz.w, h: sz.h,
         fit: (ratio < 1.05 || ratio > 2.1 ? "whole" : "fill") as "fill" | "whole" };
     }));
     return got.filter((x): x is Photo => !!x);
