@@ -138,7 +138,7 @@ Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: CORS });
   if (req.method !== "POST") return reply(405, { code: "invalid_argument", message: "POST only" });
 
-  let body: { k?: string; prompt?: string; images?: { media_type: string; data: string }[]; ping?: boolean; web?: boolean; photos?: string[]; dish?: string; effort?: string; maxSearch?: number; maxFetch?: number; nudge?: boolean };
+  let body: { k?: string; prompt?: string; images?: { media_type: string; data: string }[]; ping?: boolean; web?: boolean; photos?: string[]; dish?: string; effort?: string; maxSearch?: number; maxFetch?: number; nudge?: boolean; fast?: boolean };
   try { body = await req.json(); } catch { return reply(400, { code: "invalid_argument", message: "Bad JSON" }); }
 
   if (!(await keyOk(String(body.k || "")))) return reply(401, { code: "not_granted", message: "Family key not accepted" });
@@ -163,7 +163,8 @@ Deno.serve(async (req: Request) => {
   // linked page or a search result). Facebook, TikTok and Instagram block outside readers.
   const t0 = Date.now();
   const lim = (v: unknown, d: number) => { const n = Number(v); return Number.isFinite(n) ? Math.min(d, Math.max(1, Math.round(n))) : d; };
-  const tools = body.web
+  const fast = !!body.fast; // a quick draft: the small model, no web search
+  const tools = body.web && !fast
     ? [{ type: "web_search_20260209", name: "web_search", max_uses: lim(body.maxSearch, 5) }, { type: "web_fetch_20260209", name: "web_fetch", max_uses: lim(body.maxFetch, 4) }]
     : undefined;
   // For lookups, research is the job: without this, Claude sometimes answers from memory.
@@ -177,11 +178,9 @@ Deno.serve(async (req: Request) => {
     let searched = 0, fetched = 0, nudged = false;
     for (let round = 0; round < 6; round++) {
       response = await client.beta.messages.create({
-        model: MODEL,
-        max_tokens: 16000,
-        output_config: { effort: body.effort === "low" ? "low" : "medium" },
-        betas: ["server-side-fallback-2026-07-01"],
-        fallbacks: "default",
+        ...(fast
+          ? { model: PICK_MODEL, max_tokens: 3000 }
+          : { model: MODEL, max_tokens: 16000, output_config: { effort: body.effort === "low" ? "low" : "medium" }, betas: ["server-side-fallback-2026-07-01"], fallbacks: "default" }),
         ...(system ? { system } : {}),
         ...(tools ? { tools } : {}),
         messages,
@@ -203,7 +202,7 @@ Deno.serve(async (req: Request) => {
       }
       break;
     }
-    console.log(JSON.stringify({ web: !!tools, searched, fetched, nudged, stop: response?.stop_reason, ms: Date.now() - t0 }));
+    console.log(JSON.stringify({ fast, web: !!tools, searched, fetched, nudged, stop: response?.stop_reason, ms: Date.now() - t0 }));
     if (!response) return reply(500, { code: "unavailable", message: "No answer" });
     if (response.stop_reason === "refusal") {
       return reply(422, { code: "refused", message: "Claude declined this request." });

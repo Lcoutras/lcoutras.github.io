@@ -247,7 +247,7 @@
     return out;
   }
   const sample = async (input, opts = {}) => {
-    const r = await callClaude({ prompt: toPrompt(input), images: await toImages(opts.images), web: !!opts.web, ...(opts.web ? { effort: 'low', maxSearch: 3, maxFetch: 2 } : {}) });
+    const r = await callClaude({ prompt: toPrompt(input), images: await toImages(opts.images), web: !!opts.web, ...(opts.fast ? { fast: true } : {}), ...(opts.web ? { effort: 'low', maxSearch: 3, maxFetch: 2 } : {}) });
     const text = r.text || '';
     if(typeof opts.onText === 'function'){ try{ opts.onText({ text, delta: text }); }catch{} }
     return { text, truncated: !!r.truncated };

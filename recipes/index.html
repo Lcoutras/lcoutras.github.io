@@ -14,7 +14,7 @@
 <link rel="icon" href="food-icon.svg" type="image/svg+xml">
 <link rel="icon" type="image/png" sizes="180x180" href="food-icon-180.png">
 <script src="config.js?v=3"></script>
-<script src="shim.js?v=13"></script>
+<script src="shim.js?v=14"></script>
 <style>
 [hidden]{display:none!important}
 :root{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
@@ -1854,6 +1854,31 @@ function mergeSuggestion(d, out){
   d.inferred = true;
   const bo = basedOnList(out); if(bo.length) d.basedOn = bo;
 }
+/* Put a recipe from Claude into the form (the quick draft or the researched version) */
+function applyReadOut(d, out, quick){
+  d._filled = true;
+  d.title = d._dish || d.title || String(out.title||'');
+  for(const k of ['author','servings','prepMinutes','cookMinutes','notes']) if(out[k]!=null && out[k]!=='') d[k] = out[k];
+  if(Array.isArray(out.ingredients) && out.ingredients.length) d.ingredients = out.ingredients.map(String);
+  if(Array.isArray(out.steps) && out.steps.length) d.steps = out.steps.map(String);
+  d.tags = facetTags(out);
+  if(out.nutrition && typeof out.nutrition==='object') d.nutrition = { calories:+out.nutrition.calories||0, protein:+out.nutrition.protein||0, carbs:+out.nutrition.carbs||0, fat:+out.nutrition.fat||0 };
+  d.inferred = !!out.inferred;
+  d.basedOn = basedOnList(out);
+  if(out.coverImage!=null && shots.length){ const ci = Number(out.coverImage); d._cover = ci>=1 && ci<=shots.length ? ci-1 : -1; }
+  d._readMsg = '<span class="msg">'+(d.inferred ? 'The post didn’t list everything, so Claude filled the gaps from similar recipes. See Notes, check it over below, then save.' : 'Got it. Check it over below, then save.')+'</span>';
+  if(quick) d._readMsg = '<span class="msg"><span class="spin"></span> Quick draft below, filled in from similar recipes. Checking real recipes in the background…</span>';
+}
+async function askDraft(dish, url, caption, images){
+  const cap = String(caption||'').trim().slice(0, 3000);
+  const prompt = `Quick draft of a home-cook recipe for: ${dish}${url ? ' (from the post '+url+')' : ''}.${cap ? '\nCaption from the post (use any ingredients or steps it lists, exactly):\n"""\n'+cap+'\n"""' : ''}
+Return ONLY compact JSON, no extra text:
+{"title":string,"servings":number,"prepMinutes":number,"cookMinutes":number,"ingredients":["amount unit item",...],"steps":["one short sentence",...],"course":"Dinner"|"Lunch"|"Appetizer"|"Side dish"|"Soup"|"Salad"|"Dessert"|"Breakfast"|"Snack"|"Drink","region":the culinary tradition the DISH itself comes from historically, e.g. Italian, Mexican, American, French, Greek, Indian, Thai, Chinese, Japanese, Korean, Mediterranean (not where the video was made),"style":["1-2 words"],"inferred":true}
+Use normal amounts for the servings. 6 to 8 steps, each under 18 words. No nutrition, no notes.`;
+  const opts = { modelTier:'fast', web:false, fast:true };
+  if(images && images.length && state.imgOK) opts.images = images.slice(0, state.imgMax);
+  return await state.sample.json(prompt, opts);
+}
 async function askClaude(prompt, images){
   const opts = { modelTier:'default', web: !!state.webResearch };
   if(images && images.length && state.imgOK) opts.images = images.slice(0, state.imgMax);
@@ -2062,7 +2087,7 @@ const usePick = (d, pk) => { photoFile = pk.blob; d.photoCredit = pk.site; d._cr
 async function autoPhotoFor(id, early){
   if(!canFindPhotos() || !draft) return;
   const d = draft;
-  if(photoFile || d.photoId || (shots.length && d._cover !== -1) || !photoPages(d).length) return;
+  if((photoFile && photoFile !== d._autoPick) || d.photoId || (shots.length && d._cover !== -1) || !photoPages(d).length) return;
   d._photoBusy = true; const n = $('#photoNote'); if(n) n.textContent = 'Looking at the photos on the recipe pages and picking the best one…';
   try{
     /* The post's own picture was already being fetched while the recipe was written: show it at once */
@@ -2173,6 +2198,8 @@ function renderEditor(id){
     d.nutrition = { calories:+v('#f-kcal')||0, protein:+v('#f-pro')||0, carbs:+v('#f-carb')||0, fat:+v('#f-fat')||0 };
   };
   form.addEventListener('input', sync);
+  form.addEventListener('input', () => { d._touched = true; });
+  const ur = $('#useResearch'); if(ur) ur.onclick = () => { sync(); if(d._research){ applyReadOut(d, d._research, false); d._research = null; d._touched = false; renderEditor(id); autoPhotoFor(id); } };
   const coverIdx = () => { const i = d._cover==null ? 0 : d._cover; return i>=0 && i<shots.length ? i : -1; };
   const drawPreview = () => { const p = $('#pprev'), n = $('#photoNote'); if(!p) return; p.innerHTML = '';
     let src = '', note = '';
@@ -2346,25 +2373,31 @@ function renderEditor(id){
     const early = canFindPhotos() && d.sourceUrl && !photoFile && !d.photoId && !shots.length
       ? window.RecipeBoxWeb.findPhotos(photoPages({ sourceUrl: d.sourceUrl }), d._dish).catch(() => []) : null;
     try{
-      const out = await askClaude(prompt, shots.map(s=>s.blob));
+      const blobs = shots.map(s=>s.blob);
+      const full = askClaude(prompt, blobs); full.catch(() => {});
+      let out, isDraft = false;
+      if(state.webResearch){
+        /* a quick draft (a few seconds) while the researched recipe is still being written */
+        const dr = askDraft(d._dish, d.sourceUrl, d._caption, blobs).then(o => o && !o.error ? { o, draft: true } : new Promise(() => {}), () => new Promise(() => {}));
+        const first = await Promise.race([dr, full.then(o => ({ o, draft: false }))]);
+        out = first.o; isDraft = first.draft;
+      } else out = await full;
       if(!out || out.error){
         let saved = false;
         if(!d._inboxId && d.sourceUrl){ try{ const iid = newId('i'); await bdoc('inbox/'+iid).set({ url: d.sourceUrl, note: d._dish||'', shotIds: [], addedBy: state.me||'', createdAt: Date.now() }); d._inboxId = iid; saved = true; }catch{} }
         d._readMsg = '<span class="msg err">Claude couldn’t make a recipe for “'+esc(d._dish)+'”'+(out && out.error ? ': '+esc(out.error) : '.')+' Try a more specific title, like “creamy Tuscan chicken pasta”.'+(d._inboxId ? ' The link is saved in your Inbox.' : '')+'</span>';
         renderEditor(id); return; }
-      d._filled = true;
-      d._filled = true;
-      d.title = d._dish || d.title || String(out.title||'');
-      for(const k of ['author','servings','prepMinutes','cookMinutes','notes']) if(out[k]!=null && out[k]!=='') d[k] = out[k];
-      if(Array.isArray(out.ingredients) && out.ingredients.length) d.ingredients = out.ingredients.map(String);
-      if(Array.isArray(out.steps) && out.steps.length) d.steps = out.steps.map(String);
-      d.tags = facetTags(out);
-      if(out.nutrition && typeof out.nutrition==='object') d.nutrition = { calories:+out.nutrition.calories||0, protein:+out.nutrition.protein||0, carbs:+out.nutrition.carbs||0, fat:+out.nutrition.fat||0 };
-      d.inferred = !!out.inferred;
-      d.basedOn = basedOnList(out);
-      if(out.coverImage!=null && shots.length){ const ci = Number(out.coverImage); d._cover = ci>=1 && ci<=shots.length ? ci-1 : -1; }
-      d._readMsg = '<span class="msg">'+(d.inferred ? 'The post didn’t list everything, so Claude filled the gaps from similar recipes. See Notes, check it over below, then save.' : 'Got it. Check it over below, then save.')+'</span>';
+      d._touched = false; d._research = null;
+      applyReadOut(d, out, isDraft);
       renderEditor(id); autoPhotoFor(id, early);
+      if(isDraft){
+        const real = await full.catch(() => null);
+        if(draft === d && real && !real.error){
+          if(!d._touched){ applyReadOut(d, real, false); d._autoRefreshed = true; }
+          else { d._research = real; d._readMsg = '<span class="msg">The researched recipe is ready. <button class="btn small" type="button" id="useResearch">Use it (replaces what’s below)</button></span>'; }
+          if(route().name === 'edit'){ renderEditor(id); autoPhotoFor(id); }
+        } else if(draft === d){ d._readMsg = '<span class="msg">Quick draft from similar recipes. Check it over below, then save.</span>'; if(route().name === 'edit') renderEditor(id); }
+      }
     }catch(e){ msg.innerHTML = '<span class="msg err">'+esc(claudeErr(e))+' Or fill it in by hand.</span>'; }
     finally{ const b=$('#read'); if(b) b.disabled=false; }
   };
