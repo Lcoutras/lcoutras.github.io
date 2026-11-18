@@ -562,6 +562,13 @@ ol.method li::before{background:var(--accent);color:var(--accent-ink);font-famil
 .inferbar,.sourcelink{max-width:100%;box-sizing:border-box;overflow-wrap:anywhere}
 
 .thumb .bgblur{position:absolute;inset:-12%;width:124%;height:124%;max-width:none;object-fit:cover;filter:blur(22px) brightness(.55);pointer-events:none}
+
+/* changes Claude made after you saved */
+.hl{outline:2px solid var(--accent);outline-offset:4px;border-radius:12px;background:color-mix(in srgb,var(--accent) 9%,transparent)}
+.approvebar{display:grid;gap:10px;background:color-mix(in srgb,var(--accent) 12%,var(--surface));border:1px solid var(--accent);border-radius:14px;padding:12px 14px;margin-bottom:14px;font-size:.92rem}
+.approvebar .row{display:flex;gap:8px;flex-wrap:wrap}
+.was{margin-top:8px;font-size:.85rem;color:var(--muted)}.was summary{cursor:pointer}.was ul{margin:6px 0 0 18px;padding:0}.was p{margin:6px 0 0}
+.wasnum{display:block;color:var(--muted);font-size:.72rem;margin-top:2px}
 </style>
 
 <div class="app">
@@ -1425,14 +1432,20 @@ function renderDetail(id){
   const base = Number(r.servings)||0;
   const servLabel = base ? fmt(base*scale)+' servings' : (scale===1?'1×':fmt(scale)+'×');
   const url = safeUrl(normUrl(r.sourceUrl));
+  markSeen(r);
   const n = r.nutrition || {};
   const hasN = n.calories || n.protein || n.carbs || n.fat;
+  const pc = pendingOf(r), hasPC = Object.keys(pc).length > 0, hl = k => pc[k] ? ' hl' : '';
+  const wasList = k => pc[k] ? `<details class="was"><summary>What it was before</summary>${Array.isArray(pc[k].was) && pc[k].was.length ? '<ul>'+pc[k].was.map(x => `<li>${esc(String(x))}</li>`).join('')+'</ul>' : '<p>Nothing was here.</p>'}</details>` : '';
+  const wasText = k => pc[k] ? `<details class="was"><summary>What it was before</summary><p>${pc[k].was ? esc(String(pc[k].was)) : 'Nothing was here.'}</p></details>` : '';
+  const wasNum = (k, fmtv) => pc[k] ? `<small class="wasnum">was ${pc[k].was ? esc(fmtv(pc[k].was)) : '—'}</small>` : '';
   const days = Array.from({length:14}, (_,i) => addDays(new Date(), i));
   view.innerHTML = `
     <a class="btn ghost back" href="#">← All recipes</a>
     ${fillBusy(r) ? `<div class="inferbar" id="fillbar"><span class="spin"></span> Claude is filling in this recipe. It updates here by itself, so you can leave this page.</div>` : ''}
     ${r.fillStatus === 'failed' ? `<div class="inferbar" id="fillbar">${esc(r.fillError || 'Claude couldn’t fill this one in.')} <button class="btn small" type="button" id="refill">Try again</button></div>` : ''}
     ${r.inferred && !fillBusy(r) ? `<div class="inferbar">The post didn’t list everything, so Claude filled in the missing ingredients or steps from similar recipes for this dish. Treat amounts as a starting point and adjust to taste.</div>` : ''}
+    ${hasPC && state.canWrite ? `<div class="approvebar" id="approvebar"><div><b>Claude updated this recipe after you saved it.</b> Changed: ${Object.keys(pc).map(k => esc(CHANGE_LABEL[k] || k)).join(', ')}. The changed parts are highlighted below. Look them over, then approve (saving an edit also approves).</div><div class="row"><button class="btn primary" type="button" id="approveBtn">Approve changes</button><a class="btn" href="#edit-${esc(r.id)}">Edit</a><button class="btn ghost" type="button" id="revertBtn">Keep my version</button></div></div>` : ''}
     ${r.needsReview && state.canWrite ? `<div class="reviewbar" id="reviewbar"><span>Claude imported this one. Give it a quick look.</span><a class="btn small" href="#edit-${esc(r.id)}">Edit</a><button class="btn primary small" type="button" id="okBtn">Looks good</button></div>` : ''}
     <section class="hero">
       <div class="herophoto"><div class="thumb">${bgBlur(r)}${imgSrc(r)?`<img src="${esc(imgSrc(r))}" alt="${esc(r.title)}"${posStyle(r)}>`:coverHTML(r, true)}</div>
@@ -1443,18 +1456,18 @@ function renderDetail(id){
         <div class="meta dmeta">${r.platform?`<span class="src">${esc(r.platform)}</span>`:''}${r.author?`<span>by ${esc(r.author)}</span>`:''}${r.addedBy?`<span>· added by ${esc(who(r.addedBy))}</span>`:''}</div>
         ${url ? `<div class="sourcelink"><span class="lbl">Original post</span><a href="${esc(url)}" target="_blank" rel="noopener" id="srcA">${esc(url)}</a><button class="btn small" type="button" id="copySrc">Copy link</button></div>` : (r.sourceUrl ? `<div class="sourcelink"><span class="lbl">Source</span><span>${esc(r.sourceUrl)}</span></div>` : '')}
         <div class="facts">
-          <div class="fact"><small>Prep</small><b>${mins(r.prepMinutes)}</b></div>
-          <div class="fact"><small>Cook</small><b>${mins(r.cookMinutes)}</b></div>
-          <div class="fact"><small>Serves</small><b>${base||'—'}</b></div>
+          <div class="fact${hl('prepMinutes')}"><small>Prep</small><b>${mins(r.prepMinutes)}</b>${wasNum('prepMinutes', mins)}</div>
+          <div class="fact${hl('cookMinutes')}"><small>Cook</small><b>${mins(r.cookMinutes)}</b>${wasNum('cookMinutes', mins)}</div>
+          <div class="fact${hl('servings')}"><small>Serves</small><b>${base||'—'}</b>${wasNum('servings', v => v)}</div>
         </div>
-        <div class="nutri" id="nutri">${hasN ? `
+        <div class="nutri${hl('nutrition')}" id="nutri">${hasN ? `
           <div class="fact"><small>Calories</small><b>${Math.round(n.calories||0)}</b></div>
           <div class="fact"><small>Protein</small><b>${Math.round(n.protein||0)}g</b></div>
           <div class="fact"><small>Carbs</small><b>${Math.round(n.carbs||0)}g</b></div>
           <div class="fact"><small>Fat</small><b>${Math.round(n.fat||0)}g</b></div>
           <span class="est">Per serving, estimated by Claude.${state.sample&&state.canWrite?' <button class="btn ghost small" type="button" id="estN">Re-estimate</button>':''}</span>`
           : (state.sample && state.canWrite ? '<button class="btn small" type="button" id="estN">Estimate calories & macros</button>' : '')}</div>
-        <div class="cats"><span class="lbl">Categories</span>
+        <div class="cats${hl('tags')}"><span class="lbl">Categories</span>
           ${catsOpen ? '<div id="detailCats" style="flex:1 1 100%"></div><button class="btn small" type="button" id="catsDone">Done</button>' :
             `${canonList(r.tags).sort((a,b)=>{ const gi = l => { const g = groupOf(l); return g==='Other'?99:GROUP_ORDER.indexOf(g); }; return gi(a)-gi(b); }).map(t=>`<span class="lbl-chip" title="${esc(groupOf(t))}"><span class="lbl-g">${esc(groupOf(t)==='Other'?'':groupOf(t)==='Main ingredient'?'Main':groupOf(t))}</span>${esc(t)}</span>`).join('') || '<span class="status" style="margin:0">None yet</span>'}${state.canWrite ? `<button class="btn ghost small" type="button" id="catsEdit">${(r.tags||[]).length?'Edit':'+ Add categories'}</button>` : ''}`}</div>
         ${(r.cookbooks||[]).length?`<div class="tags" style="margin-top:10px">${(r.cookbooks||[]).map(b=>`<span class="tag book">▤ ${esc(b)}</span>`).join('')}</div>`:''}
@@ -1473,13 +1486,13 @@ function renderDetail(id){
       </div>
     </section>
     <section class="cols">
-      <div class="panel"><h3>Ingredients
+      <div class="panel${hl('ingredients')}"><h3>Ingredients
         <span class="tools"><span class="scaler" aria-label="Scale recipe"><button type="button" id="sdown" aria-label="Smaller batch">−</button><span>${servLabel}</span><button type="button" id="sup" aria-label="Bigger batch">+</button></span>${unitSeg()}</span></h3>
-        ${(r.ingredients||[]).length ? `<ul class="ing">${r.ingredients.map((l,i)=>`<li><label><input type="checkbox" id="ing-${i}"><span>${lineHTML(l,scale,state.units)}</span></label></li>`).join('')}</ul>` : `<p class="status">No ingredients listed.</p>${state.sample && state.canWrite ? '<button class="btn primary small" type="button" id="fillMissing">Have Claude work out the ingredients and steps</button> <span id="fillmsg"></span>' : ''}`}
+        ${(r.ingredients||[]).length ? `<ul class="ing">${r.ingredients.map((l,i)=>`<li><label><input type="checkbox" id="ing-${i}"><span>${lineHTML(l,scale,state.units)}</span></label></li>`).join('')}</ul>${wasList('ingredients')}` : `<p class="status">No ingredients listed.</p>${state.sample && state.canWrite ? '<button class="btn primary small" type="button" id="fillMissing">Have Claude work out the ingredients and steps</button> <span id="fillmsg"></span>' : ''}`}
       </div>
-      <div class="panel"><h3>Method</h3>
-        ${(r.steps||[]).length ? `<ol class="method">${r.steps.map(s=>`<li><span>${esc(convTemps(s,state.units))}</span></li>`).join('')}</ol>` : '<p class="status">No steps listed.</p>'}
-        ${r.notes?`<div class="notes"><b>Notes</b>${esc(r.notes)}</div>`:''}
+      <div class="panel${hl('steps')}"><h3>Method</h3>
+        ${(r.steps||[]).length ? `<ol class="method">${r.steps.map(s=>`<li><span>${esc(convTemps(s,state.units))}</span></li>`).join('')}</ol>${wasList('steps')}` : '<p class="status">No steps listed.</p>'}
+        ${r.notes?`<div class="notes${hl('notes')}"><b>Notes</b>${esc(r.notes)}</div>${wasText('notes')}`:''}
         ${(r.basedOn||[]).length ? `<div class="notes sources"><b>Recipe sources Claude used</b><ul>${r.basedOn.map(u => { const su = safeUrl(u); let h = su; try{ h = new URL(su).hostname.replace(/^www\./,''); }catch{} return su ? `<li><a href="${esc(su)}" target="_blank" rel="noopener">${esc(h)}</a></li>` : ''; }).join('')}</ul></div>` : ''}
       </div>
     </section>`;
@@ -1497,6 +1510,10 @@ function renderDetail(id){
   };
   const fb = $('#favBtn'); if(fb) fb.onclick = async () => { fb.disabled = true; try{ await bdoc('recipes/'+id).update({ favorite: !r.favorite }); }catch{ fb.disabled = false; } };
   const cb2 = $('#cookedBtn'); if(cb2) cb2.onclick = async () => { cb2.disabled = true; try{ await bdoc('recipes/'+id).update({ cooked: !r.cooked }); toast(r.cooked ? 'Marked as not cooked yet' : 'Another delicious memory made.'); }catch{ cb2.disabled = false; } };
+  const apb = $('#approveBtn'); if(apb) apb.onclick = async () => { apb.disabled = true; try{ await bdoc('recipes/'+id).update({ pendingChanges: null, pendingAt: null, needsReview: false }); toast('Changes approved'); }catch{ apb.disabled = false; } };
+  const rvb = $('#revertBtn'); if(rvb) rvb.onclick = async () => { rvb.disabled = true; try{ const patch = { pendingChanges: null, pendingAt: null, needsReview: false };
+    for(const [k, v] of Object.entries(pc)) patch[k] = v.was != null ? v.was : (k === 'notes' ? '' : (k === 'ingredients' || k === 'steps' || k === 'tags') ? [] : null);
+    await bdoc('recipes/'+id).update(patch); toast('Kept your version'); }catch{ rvb.disabled = false; } };
   const rf = $('#refill'); if(rf) rf.onclick = async () => { rf.disabled = true; try{ await bdoc('recipes/'+id).update({ fillStatus: 'pending', fillError: '' }); fillLater(id, { ...r, fillStatus: 'pending' }); }catch{ rf.disabled = false; } };
   const fm = $('#fillMissing'); if(fm) fm.onclick = async () => {
     fm.disabled = true; $('#fillmsg').innerHTML = '<span class="msg"><span class="spin"></span> Working it out…</span>';
@@ -1651,7 +1668,7 @@ function cardHTML(r, planMode){
     <div class="cbody">${src ? `<span class="source">${esc(src)}</span>` : ''}<h3>${esc(r.title||'Untitled recipe')}</h3>
       <div class="stats">${t ? `<span>◷ ${mins(t)}</span>` : ''}${r.nutrition && r.nutrition.calories ? `<span>◉ ~${Math.round(r.nutrition.calories)} kcal</span>` : ''}${r.servings ? `<span>◎ Serves ${esc(r.servings)}</span>` : ''}</div>
       ${tags.length ? `<div class="ctags">${tags.map(x => `<span class="tag">${esc(x)}</span>`).join('')}</div>` : ''}
-      ${r.needsReview || r.inferred || fillBusy(r) || r.fillStatus === 'failed' ? `<div class="flags">${fillBusy(r) ? '<span class="src strong"><span class="spin"></span> Filling in…</span>' : r.fillStatus === 'failed' ? '<span class="review">Couldn’t fill in</span>' : (r.needsReview ? '<span class="review">Check me</span>' : '')}${r.inferred && !fillBusy(r) ? '<span class="src strong">Filled in by Claude</span>' : ''}</div>` : ''}
+      ${r.needsReview || r.inferred || fillBusy(r) || r.fillStatus === 'failed' || hasPending(r) ? `<div class="flags">${fillBusy(r) ? '<span class="src strong"><span class="spin"></span> Filling in…</span>' : r.fillStatus === 'failed' ? '<span class="review">Couldn’t fill in</span>' : hasPending(r) ? '<span class="review">Confirm changes</span>' : (r.needsReview ? '<span class="review">Check me</span>' : '')}${r.inferred && !fillBusy(r) ? '<span class="src strong">Filled in by Claude</span>' : ''}</div>` : ''}
       ${by ? `<div class="by">${by}</div>` : ''}
       ${planMode && state.canWrite ? `<button class="btn small planit" type="button" data-planit="${esc(r.id)}">+ Plan</button>` : ''}</div></article>`;
 }
@@ -1914,6 +1931,35 @@ const reuseFields = r => { const f = { ingredients: r.ingredients||[], steps: r.
   for(const k of ['servings','prepMinutes','cookMinutes','author']) if(r[k]) f[k] = r[k];
   if(r.photoId){ f.photoId = r.photoId; f.photoCredit = r.photoCredit || ''; f.photoFit = r.photoFit || null; f.photoPos = r.photoPos || null; }
   return f; };
+/* ---------- changes Claude makes after you saved: shown highlighted until you approve ---------- */
+const CHANGE_FIELDS = ['ingredients','steps','servings','prepMinutes','cookMinutes','tags','notes','nutrition'];
+const CHANGE_LABEL = { ingredients:'ingredients', steps:'method', servings:'servings', prepMinutes:'prep time', cookMinutes:'cook time', tags:'categories', notes:'notes', nutrition:'nutrition' };
+const isEmptyVal = v => v == null || v === '' || (Array.isArray(v) && !v.length) || (typeof v === 'object' && !Array.isArray(v) && !Object.values(v).some(Boolean));
+const pendingOf = r => (r && r.pendingChanges && typeof r.pendingChanges === 'object') ? r.pendingChanges : {};
+const hasPending = r => Object.keys(pendingOf(r)).length > 0;
+/* Write what Claude found into the saved recipe. With mark on, every field it changes is remembered
+   (with what it was) so the person can see exactly what moved and approve it. */
+async function applyAgentChanges(id, f, { mark, extra } = {}){
+  const cur = byId(id) || {}; const patch = { basedOn: f.basedOn || [], inferred: !!f.inferred, updatedAt: Date.now(), ...(extra || {}) };
+  const pend = { ...pendingOf(cur) };
+  for(const k of CHANGE_FIELDS){ const nv = f[k]; if(isEmptyVal(nv)) continue; const ov = cur[k];
+    if(JSON.stringify(ov ?? null) === JSON.stringify(nv)) continue;
+    patch[k] = nv;
+    if(mark && !pend[k]) pend[k] = { was: ov == null ? null : ov }; }
+  if(Object.keys(pend).length){ patch.pendingChanges = pend; patch.pendingAt = cur.pendingAt || Date.now(); }
+  await bdoc('recipes/'+id).update(patch);
+}
+/* The person saved while Claude was still researching: when it arrives, update the saved recipe and flag it */
+async function lateResearch(rid, full){
+  try{ const real = await full; if(!real || real.error) return;
+    let cur = null; for(let i = 0; i < 25 && !cur; i++){ cur = byId(rid); if(!cur) await sleep(300); } if(!cur) return;
+    await applyAgentChanges(rid, toFields(real), { mark: true });
+    if(canFindPhotos() && state.assets && !cur.photoId){ try{ const list = await window.RecipeBoxWeb.findPhotos(photoPages({ ...cur, basedOn: real.basedOn }), cur.title);
+      if(list.length && !(byId(rid)||{}).photoId){ const a = await state.assets.upload(await fitPhoto(list[0].blob, list[0].fit === 'whole')); await bdoc('recipes/'+rid).update({ photoId: a.id, photoCredit: list[0].site, photoFit: null, photoPos: null }); } }catch{} }
+  }catch{}
+}
+const seenMarked = new Set();
+function markSeen(r){ if(r && fillBusy(r) && !r.seenWhileFilling && state.canWrite && !seenMarked.has(r.id)){ seenMarked.add(r.id); bdoc('recipes/'+r.id).update({ seenWhileFilling: true }).catch(() => {}); } }
 const filling = new Set();
 const fillBusy = r => r && (r.fillStatus === 'pending' || r.fillStatus === 'working' || r.fillStatus === 'draft');
 async function fillLater(id, seed){
@@ -1950,7 +1996,7 @@ async function fillLater(id, seed){
     /* 2) the researched recipe */
     const out = await full;
     if(!out || out.error){ if(!wrote) fail = (out && out.error) || 'Claude couldn’t tell what dish this is. Edit the title to be more specific.'; }
-    else { await up({ ...fields(out, true), fillClaim: Date.now() });
+    else { await applyAgentChanges(id, toFields(out), { mark: !!(byId(id) || {}).seenWhileFilling, extra: { fillClaim: Date.now() } });
       if(canFindPhotos() && state.assets){ try{ const cur = byId(id) || {}; if(!cur.photoId || cur.photoId === ourPhoto) await photoFrom(await window.RecipeBoxWeb.findPhotos(photoPages({ ...r0, basedOn: out.basedOn }), dish)); }catch{} } }
   }catch(e){ fail = claudeErr(e); }
   try{ await up(fail ? { fillStatus: 'failed', fillError: fail } : { fillStatus: 'done', fillError: '' }); }catch{}
@@ -2176,7 +2222,7 @@ function renderEditor(id){
     draft.cookbooks = draft.cookbooks || []; shots = []; photoFile = null;
     if(!existing && state.pendingLink){ draft.sourceUrl = state.pendingLink; if(state.sample) draft._mode = 'link'; state.pendingLink = ''; }
   }
-  const d = draft; const n = d.nutrition || {};
+  const d = draft; const n = d.nutrition || {}; markSeen(existing);
   const canClaude = !!state.sample;
   const books = [...new Set([...allBooks(), ...d.cookbooks])].sort((a,b)=>a.localeCompare(b));
   const mode = id ? 'edit' : (canClaude ? (d._mode || 'choose') : 'manual');
@@ -2464,7 +2510,7 @@ function renderEditor(id){
       ? window.RecipeBoxWeb.findPhotos(photoPages({ sourceUrl: d.sourceUrl }), d._dish).catch(() => []) : null;
     try{
       const blobs = shots.map(s=>s.blob);
-      const full = askClaude(prompt, blobs); full.catch(() => {});
+      const full = askClaude(prompt, blobs); full.catch(() => {}); d._full = full; d._fullDone = false;
       let out, isDraft = false;
       if(state.webResearch){
         /* a quick draft (a few seconds) while the researched recipe is still being written */
@@ -2481,7 +2527,7 @@ function renderEditor(id){
       applyReadOut(d, out, isDraft);
       renderEditor(id); autoPhotoFor(id, early);
       if(isDraft){
-        const real = await full.catch(() => null);
+        const real = await full.catch(() => null); d._fullDone = true;
         if(draft === d && real && !real.error){
           if(!d._touched){ applyReadOut(d, real, false); d._autoRefreshed = true; }
           else { d._research = real; d._readMsg = '<span class="msg">The researched recipe is ready. <button class="btn small" type="button" id="useResearch">Use it (replaces what’s below)</button></span>'; }
@@ -2511,8 +2557,11 @@ function renderEditor(id){
         servings:num(d.servings), prepMinutes:num(d.prepMinutes), cookMinutes:num(d.cookMinutes),
         ingredients:d.ingredients, steps:d.steps, tags:d.tags, cookbooks:d.cookbooks, notes:d.notes, photoId, photoPos: d.photoPos || null, photoFit: d.photoFit === 'whole' ? 'whole' : null, photoCredit: d.photoCredit || '', basedOn: d.basedOn || [], nutrition: nu, needsReview: false, inferred: !!d.inferred,
         addedBy: existing ? (existing.addedBy||state.me||'') : (state.me||''), createdAt: existing ? (existing.createdAt||Date.now()) : Date.now(), updatedAt: Date.now() };
+      if(existing){ for(const k of ['favorite','cooked']) if(existing[k] != null) body[k] = existing[k]; }
       const rid = id || newId('r');
+      const lateFull = d._full && !d._fullDone ? d._full : null;
       await bdoc('recipes/'+rid).set(body);
+      if(lateFull) lateResearch(rid, lateFull);
       if(d._inboxId){ try{ await bdoc('inbox/'+d._inboxId).delete(); }catch{} }
       draft = null; shots = []; photoFile = null;
       location.hash = 'r-' + rid; toast(id ? 'Changes saved' : 'Saved to Savor');
