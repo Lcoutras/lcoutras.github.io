@@ -16,7 +16,8 @@
   /* Refresh adds ?fresh=… to fetch a new copy; an invite link adds ?join=…; tidy them away once read */
   const url = new URL(location.href);
   if(url.searchParams.get('join')) LS.set('sv:join', String(url.searchParams.get('join')).replace(/[^A-Za-z0-9]/g, '').slice(0, 40));
-  if(url.searchParams.has('fresh') || url.searchParams.has('join')){ url.searchParams.delete('fresh'); url.searchParams.delete('join'); history.replaceState(null, '', url.pathname + url.search + url.hash); }
+  const wantSignup = url.searchParams.get('signup') === '1';   /* the marketing page's "Create a free account" button */
+  if(url.searchParams.has('fresh') || url.searchParams.has('join') || url.searchParams.has('signup')){ url.searchParams.delete('fresh'); url.searchParams.delete('join'); url.searchParams.delete('signup'); history.replaceState(null, '', url.pathname + url.search + url.hash); }
 
   /* ---------- the session ---------- */
   let session = LS.get('sv:session', null);
@@ -370,14 +371,14 @@
   function showSignIn(msg, startTab){
     removeScreen();
     const joinCode = LS.get('sv:join', '');
-    let tab = startTab || (LS.get('sv:seen', false) ? 'in' : 'up');
+    let tab = startTab || 'in';   /* people land on Sign in; Create account is one tap away */
     const root = el('', 'svscreen', 'svScreen'); screenEl = root; document.body.append(root);
     const keep = { name: '', email: '' };
     root.addEventListener('input', e => { if(e.target.id === 'svName') keep.name = e.target.value; if(e.target.id === 'svEmail') keep.email = e.target.value; });
     const draw = (note, isErr) => {
       root.innerHTML = '<div class="svbox"><div class="svlogo">savor<b>✳</b></div>'
         + '<p>' + (joinCode ? 'You’ve been invited to a recipe book. Sign in or create a free account to join.' : 'Save recipes from anywhere. Cook them tonight.') + '</p>'
-        + '<div class="svtabs" role="tablist"><button type="button" role="tab" data-t="up" aria-selected="' + (tab === 'up') + '">Create account</button><button type="button" role="tab" data-t="in" aria-selected="' + (tab === 'in') + '">Sign in</button></div>'
+        + '<div class="svtabs" role="tablist"><button type="button" role="tab" data-t="in" aria-selected="' + (tab === 'in') + '">Sign in</button><button type="button" role="tab" data-t="up" aria-selected="' + (tab === 'up') + '">Create account</button></div>'
         + (note ? '<div class="svmsg' + (isErr ? ' err' : '') + '" role="status">' + note + '</div>' : '')
         + '<button class="svbtn" type="button" data-oauth="google">' + GOOGLE + 'Continue with Google</button>'
         + '<button class="svbtn" type="button" data-oauth="apple">' + APPLE + 'Continue with Apple</button>'
@@ -523,7 +524,7 @@
       }
     }
     if(session){ if(await afterSignIn()) return; }
-    showSignIn('', LS.get('sv:join', '') ? 'up' : undefined);
+    showSignIn('', (LS.get('sv:join', '') || wantSignup) ? 'up' : undefined);   /* invited people and the marketing page's create-account button start on Create account */
   }
   if(document.readyState === 'loading') document.addEventListener('DOMContentLoaded', start); else start();
 })();
