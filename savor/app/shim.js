@@ -199,22 +199,49 @@
   const assets = Object.freeze({
     async upload(blob){ const id = 'p' + Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
       const data = await shrink(blob);
-      await rpc('sv_photo_put', { book: activeBook, pid: id, pdata: data }); photoCache.set(id, data);
+      await rpc('sv_photo_put', { book: activeBook, pid: id, pdata: data }); photoCache.set(id, data); idb.set(id, data);
       return { id, url: '/_blob/' + id, sizeBytes: data.length, contentType: 'image/jpeg' }; },
     async list(){ return { assets: [], usage: {} }; },
     async delete(){}
   });
+  /* Photos arrive one request each. They are loaded a few at a time (the ones on screen first), failures are
+     retried, and every photo is remembered on this device so the next visit shows them at once. */
+  const sleep = ms => new Promise(r => setTimeout(r, ms));
+  const idb = (() => { let dbp = null;
+    const open = () => dbp || (dbp = new Promise(res => { try{ const r = indexedDB.open('savor-photos', 1); r.onupgradeneeded = () => r.result.createObjectStore('p'); r.onsuccess = () => { r.result.onversionchange = () => r.result.close(); res(r.result); }; r.onerror = () => res(null); r.onblocked = () => res(null); }catch{ res(null); } }));
+    return {
+      async get(id){ const d = await open(); if(!d) return null; return new Promise(res => { try{ const q = d.transaction('p').objectStore('p').get(id); q.onsuccess = () => res(q.result || null); q.onerror = () => res(null); }catch{ res(null); } }); },
+      async set(id, v){ const d = await open(); if(!d) return; try{ d.transaction('p', 'readwrite').objectStore('p').put(v, id); }catch{} },
+      async wipe(){ try{ const d = await open(); if(d){ await new Promise(res => { try{ const tx = d.transaction('p', 'readwrite'); tx.objectStore('p').clear(); tx.oncomplete = tx.onerror = tx.onabort = () => res(); }catch{ res(); } }); } }catch{} }
+    }; })();
+  function clearPhotoCache(){ photoCache.clear(); return idb.wipe(); }
+  let activeLoads = 0; const waiting = [];
+  const pump = () => { while(activeLoads < 4 && waiting.length){ const job = waiting.shift(); activeLoads++; job().finally(() => { activeLoads--; pump(); }); } };
+  const queued = fn => new Promise((ok, no) => { waiting.push(() => fn().then(ok, no)); pump(); });
   async function photo(id){
     if(photoCache.has(id)) return photoCache.get(id);
-    const p = rpc('sv_photo_get', { pid: id }).then(d => { photoCache.set(id, d || ''); return d || ''; }).catch(() => { photoCache.delete(id); return ''; });
+    const p = (async () => {
+      const saved = await idb.get(id); if(saved) return saved;
+      for(let i = 0; i < 4; i++){
+        try{ const d = await queued(() => rpc('sv_photo_get', { pid: id })); if(d){ idb.set(id, d); return d; } return ''; }   /* nothing stored under that id */
+        catch(e){ if(e && e.code === 'not_granted') return ''; await sleep(500 * (i + 1)); }
+      }
+      return '';
+    })().then(d => { if(d) photoCache.set(id, d); else photoCache.delete(id); return d; });
     photoCache.set(id, p); return p;
   }
-  const BLANK = 'data:image/gif;base64,R0lGODlhAQABAAAAACw=';
+  const BLANK = 'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7';   /* a valid 1x1 image (the old one was broken, which made cards hide their own photo) */
+  function showPhoto(img, id){
+    Promise.resolve(photo(id)).then(d => { if(img.dataset.pid !== id) return; if(d){ img.style.visibility = ''; img.style.display = ''; img.setAttribute('src', d); } else img.style.visibility = 'hidden'; });
+  }
+  const seenIO = 'IntersectionObserver' in window ? new IntersectionObserver(es => es.forEach(e => { if(e.isIntersecting){ seenIO.unobserve(e.target); const id = e.target.dataset.pid; if(id) showPhoto(e.target, id); } }), { rootMargin: '700px 0px' }) : null;
   function fixImg(img){
     const src = img.getAttribute('src') || '';
     if(!src.startsWith('/_blob/')) return;
     const id = src.slice(7); img.setAttribute('src', BLANK); img.dataset.pid = id;
-    Promise.resolve(photo(id)).then(d => { if(img.dataset.pid === id){ if(d) img.setAttribute('src', d); else img.style.visibility = 'hidden'; } });
+    const have = photoCache.get(id);
+    if(typeof have === 'string' && have){ img.setAttribute('src', have); return; }      /* already loaded: show it straight away */
+    if(seenIO) seenIO.observe(img); else showPhoto(img, id);                             /* otherwise load it when it is near the screen */
   }
   new MutationObserver(ms => { for(const m of ms){
       if(m.type === 'attributes' && m.target.tagName === 'IMG') fixImg(m.target);
@@ -318,6 +345,7 @@
       applyMe(j); me.email = (session && session.user && session.user.email) || me.email; }
     catch(e){ showSignIn('Signed in, but your recipe book couldn’t be opened (' + (e.message || e.code) + '). Try again.'); return false; }
     pendingName = '';
+    if(LS.get('sv:cacheUser', '') !== me.id){ await clearPhotoCache(); LS.set('sv:cacheUser', me.id); }   /* never show one person's cached photos to another */
     const code = LS.get('sv:join', '');
     removeScreen();   /* the sign-in screen must be gone before the join question appears */
     if(code){ const ok = await offerJoin(code); LS.del('sv:join'); if(ok) { try{ applyMe(await rpc('sv_me', {})); }catch{} } }
@@ -439,7 +467,7 @@
     const rn = m.querySelector('#acRename'); if(rn) rn.onclick = async () => { const n = prompt('New name for this recipe book', cur.name || ''); if(!n) return; try{ await rpc('sv_rename_book', { book: activeBook, new_name: n }); location.reload(); }catch{ toast('Couldn’t rename'); } };
     m.querySelector('#acShare').onclick = () => { m.remove(); openShare(); };
     m.querySelector('#acOut').onclick = async () => { try{ await realFetch(AUTH + 'logout', { method: 'POST', headers: { apikey: CFG.supabaseKey, Authorization: 'Bearer ' + (session ? session.access_token : '') } }); }catch{}
-      saveSession(null); try{ Object.keys(localStorage).filter(k => k.startsWith('recipebox:') || k.startsWith('sv:since')).forEach(k => localStorage.removeItem(k)); }catch{} location.hash = ''; location.reload(); };
+      saveSession(null); clearPhotoCache(); try{ Object.keys(localStorage).filter(k => k.startsWith('recipebox:') || k.startsWith('sv:since')).forEach(k => localStorage.removeItem(k)); }catch{} setTimeout(() => { location.hash = ''; location.reload(); }, 150); };
   }
   async function openShare(){
     const role = roleOf(activeBook), canManage = role === 'owner' || role === 'admin', bk = books.find(b => b.id === activeBook) || {};

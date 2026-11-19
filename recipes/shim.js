@@ -176,12 +176,12 @@
     const p = rpc('rb_photo_get', { pid: id }).then(d => { photoCache.set(id, d || ''); return d || ''; });
     photoCache.set(id, p); return p;
   }
-  const BLANK = 'data:image/gif;base64,R0lGODlhAQABAAAAACw=';
+  const BLANK = 'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7';   /* a valid 1x1 image (the old one was broken, which made cards hide their own photo) */
   function fixImg(img){
     const src = img.getAttribute('src') || '';
     if(!src.startsWith('/_blob/')) return;
     const id = src.slice(7); img.setAttribute('src', BLANK); img.dataset.pid = id;
-    Promise.resolve(photo(id)).then(d => { if(img.dataset.pid === id){ if(d) img.setAttribute('src', d); else img.style.visibility = 'hidden'; } });
+    Promise.resolve(photo(id)).then(d => { if(img.dataset.pid === id){ if(d){ img.style.visibility = ''; img.style.display = ''; img.setAttribute('src', d); } else img.style.visibility = 'hidden'; } });
   }
   new MutationObserver(ms => { for(const m of ms){
       if(m.type === 'attributes' && m.target.tagName === 'IMG') fixImg(m.target);
