@@ -12,7 +12,7 @@
 <link rel="apple-touch-icon" sizes="180x180" href="../food-icon-180.png">
 <link rel="icon" href="../food-icon.svg" type="image/svg+xml">
 <script src="config.js?v=2"></script>
-<script src="shim.js?v=2"></script>
+<script src="shim.js?v=3"></script>
 <style>[hidden]{display:none!important}:root{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html,body{margin:0}body{font-size:16px}img{max-width:100%}</style>
 </head><body>
 
@@ -559,6 +559,11 @@ ol.method li::before{background:var(--accent);color:var(--accent-ink);font-famil
 /* Back button: stays on screen while the recipe scrolls */
 .backbar{position:sticky;top:env(safe-area-inset-top,0px);z-index:20;padding:8px 0;margin:-8px 0 6px;background:linear-gradient(var(--bg) 70%,transparent)}
 .backbar .back{margin:0;box-shadow:0 1px 6px rgba(0,0,0,.12);font-weight:600}
+
+.sharenudge{display:grid;grid-template-columns:1fr auto;gap:14px 22px;align-items:center;background:color-mix(in srgb,var(--accent) 10%,var(--surface));border:1px solid color-mix(in srgb,var(--accent) 35%,var(--line));border-radius:18px;padding:16px 20px;margin:0 0 22px}
+.sharenudge h2{font-size:1.25rem;margin:0 0 2px}.sharenudge p{margin:0;color:var(--muted);font-size:.93rem}
+.sharenudge .row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+@media (max-width:700px){.sharenudge{grid-template-columns:1fr}}
 </style>
 
 <div class="app">
@@ -577,7 +582,7 @@ ol.method li::before{background:var(--accent);color:var(--accent-ink);font-famil
   <div id="sideBooks"></div>
   <button class="collection textbtn" type="button" id="sideNewColl">＋ New collection</button>
   <div class="profile"><span class="avatar" id="avatar" aria-hidden="true">✳</span><div><span id="profName">Our kitchen</span><br><small>Your family cookbook</small></div></div>
-  <div class="buildstamp" id="buildStamp">Version Nov 19, 09:43 UTC</div>
+  <div class="buildstamp" id="buildStamp">Version Nov 19, 10:20 UTC</div>
 </aside>
 <div class="mainwrap">
   <header class="top">
@@ -585,7 +590,7 @@ ol.method li::before{background:var(--accent);color:var(--accent-ink);font-famil
     <div class="bookmenu" id="bookWrap" hidden><button class="bookbtn" id="bookBtn" type="button" aria-haspopup="menu" aria-expanded="false" aria-controls="bookMenu"></button><div class="bm" id="bookMenu" role="menu" hidden></div></div>
     <div class="header-actions">
       <button class="btn small outline" id="refreshBtn" type="button" aria-label="Refresh"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 12a8 8 0 1 1-2.34-5.66"/><path d="M20 4v5h-5"/></svg>Refresh</button>
-      <button class="btn small outline" id="shareBtn" type="button" hidden><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 15V3"/><path d="m7 8 5-5 5 5"/><path d="M5 12v7a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-7"/></svg>Share</button>
+      <button class="btn small outline" id="shareBtn" type="button" title="Share your cookbook with friends" aria-label="Share your cookbook with friends" hidden><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 15V3"/><path d="m7 8 5-5 5 5"/><path d="M5 12v7a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-7"/></svg><span class="sharelbl">Share cookbook</span></button>
       <button class="btn small outline" id="themeBtn" type="button" aria-pressed="false">☾ Dark mode</button>
       <button class="btn primary" id="addBtn" type="button">＋ Save a recipe</button>
     </div>
@@ -1366,6 +1371,15 @@ function newCollection(){
 
 /* ---------- list ---------- */
 function libraryCounts(){ return { all: state.recipes.length, fav: state.recipes.filter(r => r.favorite).length, tocook: state.recipes.filter(r => !r.cooked).length }; }
+/* A friendly nudge to invite people, shown to a book's owner or admin while they are the only one in it */
+function shareNudge(){
+  try{ if(!(window.RecipeBoxWeb && window.RecipeBoxWeb.openShare) || !(state.myRole === 'owner' || state.myRole === 'admin') || (state.members || []).length > 1 || store.get('nudgeDismissed', false)) return ''; }catch{ return ''; }
+  return `<section class="sharenudge"><div><h2>Cook together</h2><p>Share your cookbook with friends and family. They get their own login, and you choose whether they can add recipes or just look.</p></div>
+    <div class="row"><button class="btn primary" type="button" data-act="share-open">Share your cookbook</button><button class="btn ghost small" type="button" data-act="nudge-x" aria-label="Hide this">Not now</button></div></section>`;
+}
+document.addEventListener('click', e => { const b = e.target.closest && e.target.closest('[data-act]'); if(!b) return;
+  if(b.dataset.act === 'share-open' && window.RecipeBoxWeb && window.RecipeBoxWeb.openShare) window.RecipeBoxWeb.openShare();
+  if(b.dataset.act === 'nudge-x'){ store.set('nudgeDismissed', true); render(); } });
 function renderList(){
   if(gate()) return;
   const all = state.recipes, mode = route().mode || '';
@@ -1377,6 +1391,7 @@ function renderList(){
   view.innerHTML = `
     ${showHero ? `<div class="title"><div><h1>Your cravings, collected.</h1><p>All the recipes you love. One delicious little home.</p></div><span class="note">A little inspiration for your next meal ↘</span></div>
     ${state.canWrite ? quick : ''}
+    ${showHero ? shareNudge() : ''}
     <div class="section"><h2>Your collections</h2>${state.canWrite ? '<button class="textbtn" type="button" id="mkColl">＋ Create collection</button>' : ''}</div>
     <div class="shelves">${books.length ? books.map((c,i) => `<button class="shelf" type="button" data-shelf="${esc(c)}"><span class="emoji" aria-hidden="true">${['🍋','🌿','🥐','🍅','🫒','🍰'][i%6]}</span><div><strong>${esc(c)}</strong><small>${(n => n + (n===1 ? ' recipe' : ' recipes'))(all.filter(r => (r.cookbooks||[]).includes(c)).length)} &nbsp; ↗</small></div></button>`).join('')
       : `<div class="shelf hintshelf"><span class="emoji" aria-hidden="true">🍋</span><div><strong>No collections yet</strong><small>Group recipes into shelves like “Weeknight favorites” or “For the weekend”.</small></div></div>`}</div>` : ''}

@@ -411,6 +411,9 @@
   const toast = t => { try{ const x = document.getElementById('toast') || document.querySelector('.toast'); if(x){ x.textContent = t; x.classList.add('show'); setTimeout(() => x.classList.remove('show'), 2600); return; } }catch{} };
   function refreshAcctBadge(){ const b = document.getElementById('svBadge'); if(b && unitsLeft != null) b.textContent = 'Claude lookups left today: ' + Math.floor(unitsLeft / 5) + ' (research) · resets overnight'; }
   function mountAccountUI(){
+    const act = document.querySelector('.header-actions');
+    if(act && !document.getElementById('svAcctTop')){ const ab = document.createElement('button'); ab.id = 'svAcctTop'; ab.type = 'button'; ab.className = 'btn small outline'; ab.textContent = 'Account'; ab.setAttribute('aria-label', 'Account, books and sign out'); ab.onclick = openAccount;
+      const sh = document.getElementById('shareBtn'); if(sh && sh.nextSibling) act.insertBefore(ab, sh.nextSibling); else act.append(ab); }
     const prof = document.querySelector('.profile'); if(!prof || document.getElementById('svAcct')) return;
     const b = document.createElement('button'); b.id = 'svAcct'; b.type = 'button'; b.className = 'svbtn small'; b.textContent = 'Account & books'; b.style.margin = '8px 4px 0';
     b.onclick = openAccount; prof.after(b);
