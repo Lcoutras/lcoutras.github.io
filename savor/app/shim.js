@@ -70,11 +70,11 @@
   }
 
   /* ---------- who I am, and which book is open ---------- */
-  let me = { id: '', name: '', email: '' }, books = [], activeBook = '', unitsLeft = null, dailyUnits = null;
+  let me = { id: '', name: '', email: '' }, books = [], activeBook = '', importsLeft = null, weeklyLimit = 10, unlimited = false;
   const roleOf = id => ((books.find(b => b.id === id) || {}).role) || '';
   const phys = p => p === 'app/home' ? 'users/' + me.id + '/home' : p.startsWith('data/users/' + me.id + '/') ? 'users/' + me.id + '/' + p.slice(('data/users/' + me.id + '/').length) : p;
   const logical = p => p === 'users/' + me.id + '/home' ? 'app/home' : p;
-  function applyMe(j){ if(!j) return; me.id = j.id; me.name = j.name || ''; books = j.books || []; activeBook = j.home || activeBook; unitsLeft = j.units_left; dailyUnits = j.daily_units; }
+  function applyMe(j){ if(!j) return; me.id = j.id; me.name = j.name || ''; books = j.books || []; activeBook = j.home || activeBook; importsLeft = j.imports_left; weeklyLimit = j.weekly_limit || 10; unlimited = !!j.unlimited; }
 
   /* ---------- local mirror of the database, kept fresh by polling for changes ---------- */
   const mirror = new Map(), loadedParents = new Set(), subs = new Set();
@@ -235,7 +235,8 @@
     catch{ throw { code: 'unavailable', message: 'No connection' }; }
     let out = {}; try{ out = await res.json(); }catch{}
     if(!res.ok) throw { code: out.code || (res.status === 429 ? 'rate_limited' : 'unavailable'), message: out.message || ('HTTP ' + res.status) };
-    if(typeof out.units_left === 'number'){ unitsLeft = out.units_left; refreshAcctBadge(); }
+    if(typeof out.imports_left === 'number'){ importsLeft = out.imports_left; refreshAcctBadge(); }
+    if(out.unlimited){ unlimited = true; refreshAcctBadge(); }
     return out;
   }
   const toPrompt = input => typeof input === 'string' ? input
@@ -246,7 +247,7 @@
     return out;
   }
   const sample = async (input, opts = {}) => {
-    const r = await callClaude({ prompt: toPrompt(input), images: await toImages(opts.images), web: !!opts.web, ...(opts.fast ? { fast: true } : {}), ...(opts.web ? { effort: 'low', maxSearch: 3, maxFetch: 2 } : {}) });
+    const r = await callClaude({ prompt: toPrompt(input), images: await toImages(opts.images), web: !!opts.web, ...(opts.importId ? { import_id: opts.importId } : {}), ...(opts.fast ? { fast: true } : {}), ...(opts.web ? { effort: 'low', maxSearch: 3, maxFetch: 2 } : {}) });
     const text = r.text || '';
     if(typeof opts.onText === 'function'){ try{ opts.onText({ text, delta: text }); }catch{} }
     return { text, truncated: !!r.truncated };
@@ -409,7 +410,8 @@
     return m;
   }
   const toast = t => { try{ const x = document.getElementById('toast') || document.querySelector('.toast'); if(x){ x.textContent = t; x.classList.add('show'); setTimeout(() => x.classList.remove('show'), 2600); return; } }catch{} };
-  function refreshAcctBadge(){ const b = document.getElementById('svBadge'); if(b && unitsLeft != null) b.textContent = 'Claude lookups left today: ' + Math.floor(unitsLeft / 5) + ' (research) · resets overnight'; }
+  function importsText(){ return unlimited ? 'Recipe imports: unlimited' : importsLeft != null ? 'Recipe imports left this week: ' + importsLeft + ' of ' + weeklyLimit + ' · resets Monday' : ''; }
+  function refreshAcctBadge(){ const b = document.getElementById('svBadge'); if(b) b.textContent = importsText(); }
   function mountAccountUI(){
     const act = document.querySelector('.header-actions');
     if(act && !document.getElementById('svAcctTop')){ const ab = document.createElement('button'); ab.id = 'svAcctTop'; ab.type = 'button'; ab.className = 'btn small outline'; ab.textContent = 'Account'; ab.setAttribute('aria-label', 'Account, books and sign out'); ab.onclick = openAccount;
@@ -429,7 +431,7 @@
         + (b.id === activeBook ? '' : '<button class="svbtn small" type="button" data-open="' + esc(b.id) + '">Open</button>') + '</div>').join('') + '</div>'
       + '<div style="display:flex;gap:8px;flex-wrap:wrap"><button class="svbtn small" type="button" id="acNew">+ New recipe book</button>'
       + (cur.role === 'owner' || cur.role === 'admin' ? '<button class="svbtn small" type="button" id="acRename">Rename this book</button>' : '') + '<button class="svbtn small" type="button" id="acShare">Share & members</button></div>'
-      + '<h4>Claude</h4><p class="svfine">' + (unitsLeft != null ? 'You have about ' + Math.floor(unitsLeft / 5) + ' full recipe lookups left today (quick drafts and photos use a little too). It resets every night.' : '') + '</p>'
+      + '<h4>Recipe imports</h4><p class="svfine">' + (unlimited ? 'Your account has no import limit.' : (importsLeft != null ? 'You have ' + importsLeft + ' of your ' + weeklyLimit + ' free recipe imports left this week. An import is one recipe added with Claude from a link or screenshots, drafts, photos and retries included. Typing recipes in yourself is always free and unlimited. It resets every Monday.' : '')) + '</p>'
       + '<button class="svbtn danger" type="button" id="acOut">Sign out</button>', 'Your account');
     m.querySelector('#acSave').onclick = async () => { const v = m.querySelector('#acName').value.trim(); if(!v) return; try{ await window.RecipeBoxPeople.setName(v); toast('Name saved'); m.remove(); location.reload(); }catch{ toast('Couldn’t save'); } };
     m.querySelectorAll('[data-open]').forEach(x => x.onclick = async () => { try{ await rpc('sv_set_home', { book: x.dataset.open }); }catch{} location.hash = ''; location.reload(); });
@@ -478,8 +480,8 @@
   const caps = { db, user, assets };
   window.claude = Object.freeze({ use: async name => { await ready; if(name === 'sample') return claudeOn(); return caps[name] || null; } });
   window.RecipeBoxWeb = { familyLink: () => location.href, openShare, recheckClaude: () => { claudeReady = null; return claudeOn(); }, signedInAs: () => me };
-  window.RecipeBoxWeb.findPhotos = async (urls, dish) => {
-    const r = await callClaude({ photos: (urls || []).filter(Boolean).slice(0, 5), dish: dish || '' });
+  window.RecipeBoxWeb.findPhotos = async (urls, dish, importId) => {
+    const r = await callClaude({ photos: (urls || []).filter(Boolean).slice(0, 5), dish: dish || '', ...(importId ? { import_id: importId } : {}) });
     return (r.photos || []).map(p => { const bin = atob(p.data); const a = new Uint8Array(bin.length); for(let i = 0; i < bin.length; i++) a[i] = bin.charCodeAt(i);
       const blob = new Blob([a], { type: p.media_type }); return { blob, url: URL.createObjectURL(blob), site: p.site, page: p.page, fit: p.fit === 'whole' ? 'whole' : 'fill', w: p.w, h: p.h }; });
   };

@@ -32,13 +32,28 @@ async function userOk(token: string): Promise<boolean> {
   if (!url || !anon || !token) return false;
   try { const res = await fetch(`${url}/auth/v1/user`, { headers: { apikey: anon, Authorization: `Bearer ${token}` } }); return res.ok; } catch { return false; }
 }
-// Returns null when allowed (and the units left), or a message when the daily allowance is used up.
-async function chargeUnits(token: string, cost: number): Promise<{ left?: number; over?: boolean }> {
+// Charges what this call costs. A recipe import (one recipe added with Claude) counts once, however many
+// calls it takes; small extras count against a generous daily guard. Returns what the page should show.
+type Charge = { importsLeft?: number | null; unlimited?: boolean; err?: { code: string; message: string; status: number } };
+async function rpcAs(token: string, fn: string, args: Record<string, unknown>): Promise<{ ok: boolean; json?: Record<string, unknown>; text: string }> {
   const url = Deno.env.get("SUPABASE_URL"), anon = Deno.env.get("SUPABASE_ANON_KEY");
-  if (!url || !anon) return {};
-  const res = await fetch(`${url}/rest/v1/rpc/sv_use`, { method: "POST", headers: { apikey: anon, Authorization: `Bearer ${token}`, "Content-Type": "application/json" }, body: JSON.stringify({ cost }) });
-  if (res.ok) { try { const j = await res.json(); return { left: Number(j.left) }; } catch { return {}; } }
-  const t = await res.text(); return /daily_limit/.test(t) ? { over: true } : {};
+  const res = await fetch(`${url}/rest/v1/rpc/${fn}`, { method: "POST", headers: { apikey: anon!, Authorization: `Bearer ${token}`, "Content-Type": "application/json" }, body: JSON.stringify(args) });
+  const text = await res.text(); let json: Record<string, unknown> | undefined; try { json = JSON.parse(text); } catch { /* not json */ }
+  return { ok: res.ok, json, text };
+}
+async function chargeCall(token: string, importId: string, needsImport: boolean): Promise<Charge> {
+  if (importId) {
+    const r = await rpcAs(token, "sv_import_use", { import_id: importId });
+    if (r.ok) return { importsLeft: typeof r.json?.left === "number" ? (r.json.left as number) : null, unlimited: !!r.json?.unlimited };
+    if (/weekly_limit/.test(r.text)) return { err: { status: 429, code: "weekly_limit", message: "You have used this week's recipe imports. They reset on Monday." } };
+    if (/import_calls/.test(r.text)) return { err: { status: 429, code: "import_calls", message: "That import used too many steps. Start it again." } };
+    return { err: { status: 400, code: "invalid_argument", message: "Couldn't check your imports." } };
+  }
+  if (needsImport) return { err: { status: 400, code: "refresh_needed", message: "Please refresh Savor to update it, then try again." } };
+  const r = await rpcAs(token, "sv_use", { cost: 1 });
+  if (r.ok) return {};
+  if (/daily_limit/.test(r.text)) return { err: { status: 429, code: "daily_limit", message: "You have used today's extra Claude requests. They reset overnight." } };
+  return {};
 }
 
 // ---------- photos: the main picture from recipe pages Claude used ----------
@@ -166,7 +181,7 @@ Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: CORS });
   if (req.method !== "POST") return reply(405, { code: "invalid_argument", message: "POST only" });
 
-  let body: { k?: string; prompt?: string; images?: { media_type: string; data: string }[]; ping?: boolean; web?: boolean; photos?: string[]; dish?: string; effort?: string; maxSearch?: number; maxFetch?: number; nudge?: boolean; fast?: boolean };
+  let body: { k?: string; prompt?: string; images?: { media_type: string; data: string }[]; ping?: boolean; web?: boolean; photos?: string[]; dish?: string; effort?: string; maxSearch?: number; maxFetch?: number; nudge?: boolean; fast?: boolean; import_id?: string };
   try { body = await req.json(); } catch { return reply(400, { code: "invalid_argument", message: "Bad JSON" }); }
 
   // Two ways in: a signed-in account (a token), or the old family link (a key) while it is still in use.
@@ -174,17 +189,21 @@ Deno.serve(async (req: Request) => {
   const isUser = !body.k && !!bearer && bearer !== req.headers.get("apikey") && bearer !== Deno.env.get("SUPABASE_ANON_KEY");
   if (isUser) { if (!(await userOk(bearer))) return reply(401, { code: "not_granted", message: "Please sign in again." }); }
   else if (!(await keyOk(String(body.k || "")))) return reply(401, { code: "not_granted", message: "Family key not accepted" });
-  let unitsLeft: number | undefined;
-  const ok200 = (o: Record<string, unknown>) => reply(200, unitsLeft === undefined ? o : { ...o, units_left: unitsLeft });
-  const charge = async (cost: number): Promise<Response | null> => {
-    if (!isUser || !cost) return null;
-    const c = await chargeUnits(bearer, cost);
-    if (c.over) return reply(429, { code: "daily_limit", message: "You have used today's Claude lookups. They reset overnight." });
-    if (c.left !== undefined) unitsLeft = c.left;
+  const importId = String(body.import_id || "").replace(/[^A-Za-z0-9_-]/g, "").slice(0, 40);
+  let importsLeft: number | null | undefined, isUnlimited = false;
+  const ok200 = (o: Record<string, unknown>) => reply(200, importsLeft === undefined && !isUnlimited ? o : { ...o, imports_left: importsLeft ?? null, unlimited: isUnlimited });
+  // One import = the draft, the researched recipe and the photo search for one recipe (they share an import id).
+  const charge = async (): Promise<Response | null> => {
+    if (!isUser || body.ping) return null;
+    const needsImport = !!(body.web || body.fast);
+    const c = await chargeCall(bearer, importId, needsImport);
+    if (c.err) return reply(c.err.status, { code: c.err.code, message: c.err.message });
+    if (c.importsLeft !== undefined) importsLeft = c.importsLeft;
+    if (c.unlimited) isUnlimited = true;
     return null;
   };
 
-  if (Array.isArray(body.photos)) { const over = await charge(1); if (over) return over; }
+  if (Array.isArray(body.photos)) { const over = await charge(); if (over) return over; }
   if (Array.isArray(body.photos)) return ok200({ photos: await findPhotos(body.photos.map(String), Deno.env.get("ANTHROPIC_API_KEY"), String(body.dish || "").slice(0, 120)) });
 
   const apiKey = Deno.env.get("ANTHROPIC_API_KEY");
@@ -196,7 +215,7 @@ Deno.serve(async (req: Request) => {
   const images = (Array.isArray(body.images) ? body.images : []).slice(0, 4)
     .filter((i) => i && /^image\/(jpeg|png|gif|webp)$/.test(i.media_type) && typeof i.data === "string" && i.data.length < 4_000_000);
 
-  { const over = await charge(body.fast ? 1 : body.web ? 5 : 1); if (over) return over; }
+  { const over = await charge(); if (over) return over; }
   const content: Anthropic.Beta.BetaContentBlockParam[] = [
     ...images.map((i) => ({ type: "image" as const, source: { type: "base64" as const, media_type: i.media_type as "image/jpeg", data: i.data } })),
     { type: "text" as const, text: prompt },

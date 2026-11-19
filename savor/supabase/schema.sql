@@ -403,7 +403,77 @@ grant execute on function
   to authenticated;
 -- The old family-key functions (rb_*) stay as they are until the family book is moved over.
 
--- Pin the search path of the three small helper functions
-alter function public.sv_merge(jsonb, jsonb) set search_path = public;
-alter function public.sv_new_id() set search_path = public;
-alter function public.sv_parent(text) set search_path = public;
+-- ================= Weekly import limit (free accounts: 10 recipe imports a week) =================
+-- One "import" = one recipe added with Claude, however many drafts, photo searches and retries it takes.
+-- The owner plan has no limit. The count is kept here on the server, so the page cannot change it.
+alter table public.sv_profiles add column if not exists plan text not null default 'free';
+alter table public.sv_profiles add column if not exists weekly_imports int not null default 10;
+create table if not exists public.sv_imports (
+  user_id    uuid not null,
+  import_key text not null,
+  week       date not null,
+  calls      int  not null default 1,
+  created_at timestamptz not null default now(),
+  primary key (user_id, import_key)
+);
+create index if not exists sv_imports_week_idx on public.sv_imports (user_id, week);
+alter table public.sv_imports enable row level security;
+revoke all on public.sv_imports from anon, authenticated;
+
+create or replace function public.sv_import_use(import_id text) returns jsonb
+language plpgsql security definer set search_path = public as $$
+declare u uuid := sv_uid(); pl text; lim int; used int; r sv_imports;
+        wk date := (date_trunc('week', now() at time zone 'utc'))::date;
+begin
+  if import_id is null or length(import_id) < 6 or length(import_id) > 40 then raise exception 'bad_import'; end if;
+  insert into sv_profiles (user_id) values (u) on conflict do nothing;
+  select plan, weekly_imports into pl, lim from sv_profiles where user_id = u;
+  if pl = 'owner' then return jsonb_build_object('unlimited', true, 'left', null, 'limit', null); end if;
+  perform pg_advisory_xact_lock(hashtext('imp:' || u::text));
+  select * into r from sv_imports where user_id = u and import_key = import_id;
+  select count(*) into used from sv_imports where user_id = u and week = wk;
+  if r.import_key is not null then   -- this import already started: more steps of the same recipe
+    if r.calls >= 15 then raise exception 'import_calls'; end if;
+    update sv_imports set calls = calls + 1 where user_id = u and import_key = import_id;
+    return jsonb_build_object('left', greatest(0, lim - used), 'limit', lim);
+  end if;
+  if used >= lim then raise exception 'weekly_limit' using detail = lim::text; end if;
+  insert into sv_imports (user_id, import_key, week) values (u, import_id, wk);
+  return jsonb_build_object('left', lim - used - 1, 'limit', lim);
+end $$;
+
+-- Small extra calls (a nutrition estimate, a photo search on an existing recipe) use a generous daily guard, not an import.
+create or replace function public.sv_use(cost int) returns jsonb
+language plpgsql security definer set search_path = public as $$
+declare u uuid := sv_uid(); lim int; used int; pl text;
+begin
+  insert into sv_profiles (user_id) values (u) on conflict do nothing;
+  select daily_units, plan into lim, pl from sv_profiles where user_id = u;
+  if pl = 'owner' then return jsonb_build_object('left', 9999, 'limit', 9999); end if;
+  insert into sv_usage (user_id, day, units) values (u, current_date, 0) on conflict do nothing;
+  select units into used from sv_usage where user_id = u and day = current_date for update;
+  if used + cost > lim then raise exception 'daily_limit' using errcode = 'P0001', detail = lim::text; end if;
+  update sv_usage set units = units + cost where user_id = u and day = current_date;
+  return jsonb_build_object('left', lim - used - cost, 'limit', lim);
+end $$;
+
+create or replace function public.sv_me() returns jsonb
+language plpgsql stable security definer set search_path = public as $$
+declare u uuid := sv_uid(); wk date := (date_trunc('week', now() at time zone 'utc'))::date;
+        pl text; lim int; used int;
+begin
+  select plan, weekly_imports into pl, lim from sv_profiles where user_id = u;
+  select count(*) into used from sv_imports where user_id = u and week = wk;
+  return jsonb_build_object('id', u::text,
+    'name', coalesce((select name from sv_profiles where user_id = u), ''),
+    'home', (select data->>'bookId' from sv_docs where path = 'users/' || u::text || '/home' and not deleted),
+    'books', coalesce((select jsonb_agg(jsonb_build_object('id', b.id, 'name', b.name, 'role', m.role) order by m.joined_at)
+                       from sv_members m join sv_books b on b.id = m.book_id where m.user_id = u), '[]'::jsonb),
+    'plan', coalesce(pl, 'free'),
+    'unlimited', coalesce(pl, 'free') = 'owner',
+    'weekly_limit', coalesce(lim, 10),
+    'imports_left', case when coalesce(pl, 'free') = 'owner' then null else greatest(0, coalesce(lim, 10) - used) end);
+end $$;
+
+revoke execute on function public.sv_import_use(text) from public, anon, authenticated;
+grant execute on function public.sv_import_use(text), public.sv_use(int), public.sv_me() to authenticated;
