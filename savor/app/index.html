@@ -12,7 +12,7 @@
 <link rel="apple-touch-icon" sizes="180x180" href="../food-icon-180.png">
 <link rel="icon" href="../food-icon.svg" type="image/svg+xml">
 <script src="config.js?v=2"></script>
-<script src="shim.js?v=7"></script>
+<script src="shim.js?v=8"></script>
 <style>[hidden]{display:none!important}:root{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html,body{margin:0}body{font-size:16px}img{max-width:100%}</style>
 </head><body>
 
@@ -567,6 +567,11 @@ ol.method li::before{background:var(--accent);color:var(--accent-ink);font-famil
 
 .addcart{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-top:14px}
 .cartmsg{font-size:.85rem;color:var(--muted)}.cartmsg a{color:var(--accent);font-weight:600}
+
+.ptag{border-color:color-mix(in srgb,var(--accent) 45%,var(--line));color:var(--accent);font-weight:600}
+.ptag.fwd{background:var(--accent);border-color:var(--accent);color:var(--accent-ink,#fff)}
+.pnote{margin:6px 0 0;font-size:.82rem;color:var(--muted)}
+#estWrap .textbtn{padding:2px 4px}
 </style>
 
 <div class="app">
@@ -585,7 +590,7 @@ ol.method li::before{background:var(--accent);color:var(--accent-ink);font-famil
   <div id="sideBooks"></div>
   <button class="collection textbtn" type="button" id="sideNewColl">＋ New collection</button>
   <div class="profile"><span class="avatar" id="avatar" aria-hidden="true">✳</span><div><span id="profName">Our kitchen</span><br><small>Your family cookbook</small></div></div>
-  <div class="buildstamp" id="buildStamp">Version Nov 19, 23:12 UTC</div>
+  <div class="buildstamp" id="buildStamp">Version Nov 19, 23:33 UTC</div>
 </aside>
 <div class="mainwrap">
   <header class="top">
@@ -725,7 +730,7 @@ const LABEL_GROUPS = {
   'Style': ['Comfort food','Healthy','Light','Hearty','Spicy','Creamy','Cheesy','Crispy','Fresh','Smoky','Sweet & savory','Indulgent','Budget friendly','Date night'],
   'Main ingredient': ['Chicken','Beef','Pork','Seafood','Pasta','Rice','Beans & lentils','Eggs','Vegetables'],
   'Method': ['Air fryer','Slow cooker','Instant Pot','Grill','One pan','Sheet pan','No cook','Baked'],
-  'Diet': ['Vegetarian','Vegan','Gluten-free','Dairy-free','High protein','Low carb'],
+  'Diet': ['Vegetarian','Vegan','Gluten-free','Dairy-free','Low carb'],
   'Occasion': ['Family favorite','Quick (30 min or less)','Meal prep','Kid friendly','Holiday','Party','Game day'] };
 const GROUP_ORDER = Object.keys(LABEL_GROUPS);
 const PRESET_LABELS = GROUP_ORDER.flatMap(g => LABEL_GROUPS[g]);
@@ -1401,9 +1406,10 @@ function renderList(){
     <div class="section" ${showHero ? 'style="margin-top:34px"' : ''}><h2 id="heading">${esc(heading)}</h2><button class="textbtn" type="button" id="resetF">${state.book || mode ? 'Show all recipes' : 'Reset filters'}</button></div>
     ${all.length ? `<div class="tools"><input class="search" id="q2" type="search" placeholder="⌕  Search recipes, ingredients, creators…" aria-label="Search recipes" value="${esc(state.q||'')}">
       <button class="outline btn" type="button" id="moreF" aria-expanded="${!!state.moreF}">☷ ${state.moreF ? 'Fewer filters' : 'All filters'}</button>
-      <select id="sortSel" class="outline" aria-label="Sort recipes">${[['recent','Recently saved'],['fast','Quickest first'],['name','A–Z']].map(([v,l]) => `<option value="${v}"${(state.sort||'recent')===v?' selected':''}>${l}</option>`).join('')}</select></div>
+      <select id="sortSel" class="outline" aria-label="Sort recipes">${[['recent','Recently saved'],['fast','Quickest first'],['protein','Most protein'],['name','A–Z']].map(([v,l]) => `<option value="${v}"${(state.sort||'recent')===v?' selected':''}>${l}</option>`).join('')}</select></div>
     ${filterSelectsHTML(all)}
-    <div class="meta"><span id="cnt"></span><span>✦ Made for your taste</span></div>` : ''}
+    <p class="pnote" id="pnote" hidden>Protein is Claude’s estimate per serving, worked out from the ingredients and the serving count. Check with your doctor or dietitian about what’s right for you.</p>
+    <div class="meta"><span id="cnt"></span><span><span id="estWrap"></span> ✦ Made for your taste</span></div>` : ''}
     <div class="grid" id="gridWrap"></div>`;
   drawLibraryGrid();
   const qf = $('#quickForm'); if(qf) qf.onsubmit = e => { e.preventDefault(); const u = $('#quickurl').value.trim();
@@ -1431,8 +1437,13 @@ function drawLibraryGrid(){
   const totalTime = r => (Number(r.prepMinutes)||0) + (Number(r.cookMinutes)||0);
   const sort = state.sort || 'recent';
   if(sort==='fast') list.sort((a,b) => (totalTime(a)||9999) - (totalTime(b)||9999));
+  if(sort==='protein') list.sort((a,b) => proteinInfo(b).g - proteinInfo(a).g);
   if(sort==='name') list.sort((a,b) => (a.title||'').localeCompare(b.title||''));
   const c = $('#cnt'); if(c) c.textContent = list.length + (list.length===1 ? ' recipe' : ' recipes') + ' in your kitchen';
+  const pn = $('#pnote'); if(pn) pn.hidden = !((state.extra && state.extra.protein) || sort === 'protein');
+  const missing = all.filter(needsNutrition), ew = $('#estWrap');
+  if(ew){ ew.innerHTML = missing.length && state.canWrite && state.sample ? `<button class="textbtn" type="button" id="estAll">Estimate nutrition for ${missing.length} recipe${missing.length === 1 ? '' : 's'}</button>` : '';
+    const ea = $('#estAll'); if(ea) ea.onclick = () => estimateMissing(ea); }
   g.innerHTML = list.length ? list.map(r => cardHTML(r, false)).join('')
     : `<div class="empty"><h2>${mode==='favorites' ? 'No favorites yet' : mode==='tocook' ? 'Everything’s been cooked!' : 'No recipes found'}</h2><p>${mode==='favorites' ? 'Tap the ♡ on any recipe to keep it here.' : mode==='tocook' ? 'Save something new to try.' : 'Try another ingredient or reset your filters.'}</p></div>`;
   bindCards(g);
@@ -1483,11 +1494,11 @@ function renderDetail(id){
           <div class="fact"><small>Protein</small><b>${Math.round(n.protein||0)}g</b></div>
           <div class="fact"><small>Carbs</small><b>${Math.round(n.carbs||0)}g</b></div>
           <div class="fact"><small>Fat</small><b>${Math.round(n.fat||0)}g</b></div>
-          <span class="est">Per serving, estimated by Claude.${state.sample&&state.canWrite?' <button class="btn ghost small" type="button" id="estN">Re-estimate</button>':''}</span>`
+          <span class="est">${proteinBadge(proteinInfo(r))} Per serving, estimated by Claude.${state.sample&&state.canWrite?' <button class="btn ghost small" type="button" id="estN">Re-estimate</button>':''}</span>`
           : (state.sample && state.canWrite ? '<button class="btn small" type="button" id="estN">Estimate calories & macros</button>' : '')}</div>
         <div class="cats${hl('tags')}"><span class="lbl">Categories</span>
           ${catsOpen ? '<div id="detailCats" style="flex:1 1 100%"></div><button class="btn small" type="button" id="catsDone">Done</button>' :
-            `${canonList(r.tags).sort((a,b)=>{ const gi = l => { const g = groupOf(l); return g==='Other'?99:GROUP_ORDER.indexOf(g); }; return gi(a)-gi(b); }).map(t=>`<span class="lbl-chip" title="${esc(groupOf(t))}"><span class="lbl-g">${esc(groupOf(t)==='Other'?'':groupOf(t)==='Main ingredient'?'Main':groupOf(t))}</span>${esc(t)}</span>`).join('') || '<span class="status" style="margin:0">None yet</span>'}${state.canWrite ? `<button class="btn ghost small" type="button" id="catsEdit">${(r.tags||[]).length?'Edit':'+ Add categories'}</button>` : ''}`}</div>
+            `${canonList(r.tags).filter(t => !HIDDEN_TAGS.has(String(t).toLowerCase())).sort((a,b)=>{ const gi = l => { const g = groupOf(l); return g==='Other'?99:GROUP_ORDER.indexOf(g); }; return gi(a)-gi(b); }).map(t=>`<span class="lbl-chip" title="${esc(groupOf(t))}"><span class="lbl-g">${esc(groupOf(t)==='Other'?'':groupOf(t)==='Main ingredient'?'Main':groupOf(t))}</span>${esc(t)}</span>`).join('') || '<span class="status" style="margin:0">None yet</span>'}${state.canWrite ? `<button class="btn ghost small" type="button" id="catsEdit">${(r.tags||[]).length?'Edit':'+ Add categories'}</button>` : ''}`}</div>
         ${(r.cookbooks||[]).length?`<div class="tags" style="margin-top:10px">${(r.cookbooks||[]).map(b=>`<span class="tag book">▤ ${esc(b)}</span>`).join('')}</div>`:''}
         <div class="actions">
           ${(r.steps||[]).length?`<a class="btn primary" href="#cook-${esc(r.id)}">Start cooking →</a>`:''}
@@ -1584,16 +1595,24 @@ function claudeErr(e){ const c = e && e.code;
     : c==='refused' ? 'Claude declined that one. Try rewording it, or fill it in by hand.'
     : c==='invalid_json' ? 'Claude’s answer came back garbled. Try again.'
     : 'Claude couldn’t do that ('+(c||'error')+'). Try again.'; }
-async function estimateNutrition(r, btn){
-  btn.disabled = true; const old = btn.innerHTML; btn.innerHTML = '<span class="spin"></span> Estimating…';
-  try{
-    const out = await state.sample.json(`Estimate nutrition PER SERVING for this recipe. Servings: ${r.servings || 'unknown (assume a typical serving count for the amounts)'}.
+const needsNutrition = r => (r.ingredients || []).length && !(r.nutrition && (Number(r.nutrition.calories) || Number(r.nutrition.protein)));
+async function estimateFor(r){
+  const out = await state.sample.json(`Estimate nutrition PER SERVING for this recipe. Servings: ${r.servings || 'unknown (assume a typical serving count for the amounts)'}.
 Ingredients:\n${(r.ingredients||[]).join('\n')}
 Return ONLY JSON: {"calories": number, "protein": grams, "carbs": grams, "fat": grams, "servingsAssumed": number}`, { modelTier:'default' });
-    const nu = { calories:+out.calories||0, protein:+out.protein||0, carbs:+out.carbs||0, fat:+out.fat||0 };
-    await bdoc('recipes/'+r.id).update({ nutrition: nu, ...( !r.servings && out.servingsAssumed ? { servings: +out.servingsAssumed } : {}) });
-    toast('Nutrition estimated');
-  }catch(e){ btn.disabled=false; btn.innerHTML = old; toast(claudeErr(e)); }
+  return { nutrition: { calories:+out.calories||0, protein:+out.protein||0, carbs:+out.carbs||0, fat:+out.fat||0 }, ...( !r.servings && out.servingsAssumed ? { servings: +out.servingsAssumed } : {}) };
+}
+async function estimateNutrition(r, btn){
+  btn.disabled = true; const old = btn.innerHTML; btn.innerHTML = '<span class="spin"></span> Estimating…';
+  try{ await bdoc('recipes/'+r.id).update(await estimateFor(r)); toast('Nutrition estimated'); }
+  catch(e){ btn.disabled=false; btn.innerHTML = old; toast(claudeErr(e)); }
+}
+let estimating = false;
+async function estimateMissing(btn){
+  if(estimating) return; estimating = true; const todo = state.recipes.filter(needsNutrition); let done = 0;
+  for(const r of todo){ btn.disabled = true; btn.innerHTML = '<span class="spin"></span> Estimating ' + (done + 1) + ' of ' + todo.length + '…';
+    try{ await bdoc('recipes/'+r.id).update(await estimateFor(r)); done++; }catch(e){ toast(claudeErr(e)); break; } }
+  estimating = false; toast(done ? 'Estimated nutrition for ' + done + ' recipe' + (done === 1 ? '' : 's') : 'Nothing was estimated'); drawLibraryGrid();
 }
 async function addToPlan(recipeId, date, meal, servings){
   const id = newId('p');
@@ -1661,6 +1680,7 @@ function filterState(all){
   const q = state.q, week = state.weekOnly ? thisWeekIds() : null, x = state.extra;
   const mins = r => (Number(r.prepMinutes)||0) + (Number(r.cookMinutes)||0);
   return all.filter(r => FACETS.every(g => !state.facets[g] || canonList(r.tags).includes(state.facets[g])) && (!state.tag || canonList(r.tags).includes(state.tag)) && (!state.book || (r.cookbooks||[]).includes(state.book)) && (!state.mine || r.addedBy===state.me) && (!week || week.has(r.id)) &&
+    (!x.protein || (x.protein === 'forward' ? proteinInfo(r).tier === 'forward' : proteinInfo(r).g >= Number(x.protein))) &&
     (!x.time || (x.time==='u30' ? mins(r) && mins(r) < 30 : x.time==='30-45' ? mins(r) >= 30 && mins(r) <= 45 : mins(r) > 45)) &&
     (!x.status || (x.status==='cooked' ? r.cooked : !r.cooked)) && (!x.who || (x.who==='me' ? r.addedBy===state.me : r.addedBy!==state.me)) &&
     (!q || [r.title, r.author, r.notes, r.platform, ...(r.tags||[]), ...(r.cookbooks||[]), ...(r.ingredients||[])].join(' ').toLowerCase().includes(q)));
@@ -1670,7 +1690,7 @@ function filterSelectsHTML(all){
   const facetOpts = g => [...new Set(all.flatMap(r => canonList(r.tags)).filter(t => groupOf(t)===g))].sort((a,b)=>a.localeCompare(b));
   const sel = (g, label) => { const opts = facetOpts(g); return opts.length ? `<select data-facet="${g}" aria-label="${label}"><option value="">${label}</option>${opts.map(o=>`<option${state.facets[g]===o?' selected':''}>${esc(o)}</option>`).join('')}</select>` : ''; };
   const xs = (k, label, opts) => `<select data-extra="${k}" aria-label="${label}"><option value="">${label}</option>${opts.map(([v,l]) => `<option value="${v}"${state.extra[k]===v?' selected':''}>${l}</option>`).join('')}</select>`;
-  return `<div class="filters">${sel('Course','Course')}${sel('Region','Region')}${sel('Style','Style')}${sel('Diet','Diet')}${xs('time','Time',[['u30','Under 30 min'],['30-45','30–45 min'],['o45','Over 45 min']])}
+  return `<div class="filters">${sel('Course','Course')}${sel('Region','Region')}${sel('Style','Style')}${sel('Diet','Diet')}${xs('protein','Protein',[['20','20 g+ protein'],['25','25 g+ (High)'],['30','30 g+ protein'],['40','40 g+ protein'],['forward','Protein-forward']])}${xs('time','Time',[['u30','Under 30 min'],['30-45','30–45 min'],['o45','Over 45 min']])}
       <button class="chip${state.weekOnly?' on':''}" type="button" data-k="week" aria-pressed="${!!state.weekOnly}">This week’s meals (${thisWeekIds().size})</button></div>
     <div class="filters" ${state.moreF ? '' : 'hidden'}>${sel('Method','Method')}${sel('Main ingredient','Main ingredient')}${xs('status','Cooking status',[['tocook','Want to cook'],['cooked','Already cooked']])}${state.me ? xs('who','Added by',[['me','Added by me'],['others','Added by family']]) : ''}</div>`;
 }
@@ -1680,9 +1700,21 @@ function bindFilterSelects(rerender){
   view.querySelectorAll('[data-k="week"]').forEach(x => x.onclick = () => { state.weekOnly = !state.weekOnly; rerender(); });
 }
 function filtersHTML(all){ return filterSelectsHTML(all); }
+/* Protein, worked out from the numbers (not from a tag Claude may or may not have added).
+   High protein: 25 g or more per serving. Protein-forward: 25 g or more AND 25% or more of the calories from protein. */
+const PROTEIN_MIN = 25, PROTEIN_SHARE_MIN = 25;
+const HIDDEN_TAGS = new Set(['high protein']);   /* shown from the numbers instead */
+function proteinInfo(r){
+  const n = (r && r.nutrition) || {}, g = Number(n.protein) || 0, kcal = Number(n.calories) || 0;
+  if(!g) return { g: 0, share: 0, tier: '' };
+  const share = kcal > 0 ? Math.round(g * 4 / kcal * 100) : 0;
+  return { g: Math.round(g), share, tier: g >= PROTEIN_MIN && share >= PROTEIN_SHARE_MIN ? 'forward' : g >= PROTEIN_MIN ? 'high' : '' };
+}
+const proteinBadge = pi => pi.tier ? `<span class="tag ptag${pi.tier === 'forward' ? ' fwd' : ''}" title="${pi.g} g protein per serving${pi.share ? ', ' + pi.share + '% of calories' : ''} (estimated)">${pi.tier === 'forward' ? 'Protein-forward' : 'High protein'}</span>` : '';
 function cardHTML(r, planMode){
   const t = (Number(r.prepMinutes)||0)+(Number(r.cookMinutes)||0);
   const ts = canonList(r.tags); const pick = g => ts.find(x => groupOf(x)===g);
+  const pi = proteinInfo(r);
   const tags = [pick('Region'), pick('Diet') || pick('Course'), pick('Style')].filter(Boolean).slice(0, 3);
   const src = r.author || r.platform || (safeUrl(normUrl(r.sourceUrl)) ? (() => { try{ return new URL(normUrl(r.sourceUrl)).hostname.replace(/^www\./,''); }catch{ return ''; } })() : '') || (r.addedBy ? 'Family recipe' : '');
   const by = r.addedBy ? (isNew(r) ? '<b>NEW</b> · added by ' : 'Added by ') + esc(who(r.addedBy)) : '';
@@ -1691,8 +1723,8 @@ function cardHTML(r, planMode){
       ${state.canWrite ? `<button class="heart" type="button" data-fav="${esc(r.id)}" aria-label="${r.favorite ? 'Remove from favorites' : 'Add to favorites'}" aria-pressed="${!!r.favorite}">${r.favorite ? '♥' : '♡'}</button>` : ''}
       <span class="badge">${r.cooked ? '✓ Cooked &amp; loved' : 'Saved for a delicious day'}</span></div>
     <div class="cbody">${src ? `<span class="source">${esc(src)}</span>` : ''}<h3>${esc(r.title||'Untitled recipe')}</h3>
-      <div class="stats">${t ? `<span>◷ ${mins(t)}</span>` : ''}${r.nutrition && r.nutrition.calories ? `<span>◉ ~${Math.round(r.nutrition.calories)} kcal</span>` : ''}${r.servings ? `<span>◎ Serves ${esc(r.servings)}</span>` : ''}</div>
-      ${tags.length ? `<div class="ctags">${tags.map(x => `<span class="tag">${esc(x)}</span>`).join('')}</div>` : ''}
+      <div class="stats">${t ? `<span>◷ ${mins(t)}</span>` : ''}${r.nutrition && r.nutrition.calories ? `<span>◉ ~${Math.round(r.nutrition.calories)} kcal</span>` : ''}${pi.g ? `<span title="Estimated per serving">◈ ${pi.g} g protein</span>` : ''}${r.servings ? `<span>◎ Serves ${esc(r.servings)}</span>` : ''}</div>
+      ${tags.length || pi.tier ? `<div class="ctags">${proteinBadge(pi)}${tags.map(x => `<span class="tag">${esc(x)}</span>`).join('')}</div>` : ''}
       ${r.needsReview || r.inferred || fillBusy(r) || r.fillStatus === 'failed' || hasPending(r) ? `<div class="flags">${fillBusy(r) ? '<span class="src strong"><span class="spin"></span> Filling in…</span>' : r.fillStatus === 'failed' ? '<span class="review">Couldn’t fill in</span>' : hasPending(r) ? '<span class="review">Confirm changes</span>' : (r.needsReview ? '<span class="review">Check me</span>' : '')}${r.inferred && !fillBusy(r) ? '<span class="src strong">Filled in by Claude</span>' : ''}</div>` : ''}
       ${by ? `<div class="by">${by}</div>` : ''}
       ${planMode && state.canWrite ? `<button class="btn small planit" type="button" data-planit="${esc(r.id)}">+ Plan</button>` : ''}</div></article>`;
