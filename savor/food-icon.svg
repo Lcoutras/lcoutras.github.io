@@ -1,0 +1,28 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <defs>
+    <radialGradient id="bg" cx="50%" cy="38%" r="70%"><stop offset="0" stop-color="#2a3a2b"/><stop offset="1" stop-color="#121612"/></radialGradient>
+    <linearGradient id="bowl" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#e8573d"/><stop offset="1" stop-color="#a8301f"/></linearGradient>
+    <radialGradient id="broth" cx="50%" cy="40%" r="60%"><stop offset="0" stop-color="#f2b25a"/><stop offset="1" stop-color="#d9822b"/></radialGradient>
+  </defs>
+  <rect width="512" height="512" rx="112" fill="url(#bg)"/>
+  <!-- steam -->
+  <g fill="none" stroke="#98D89E" stroke-width="14" stroke-linecap="round" opacity=".85">
+    <path d="M196 170c-22-26 22-40 0-70"/><path d="M256 156c-24-30 24-44 0-80"/><path d="M316 170c-22-26 22-40 0-70"/>
+  </g>
+  <!-- bowl -->
+  <path d="M86 262h340c0 96-76 162-170 162S86 358 86 262z" fill="url(#bowl)"/>
+  <rect x="196" y="414" width="120" height="22" rx="11" fill="#a8301f"/>
+  <path d="M120 300c40 10 90 14 136 14s96-4 136-14" fill="none" stroke="#ffd9cf" stroke-width="8" stroke-linecap="round" opacity=".5"/>
+  <!-- broth and noodles -->
+  <ellipse cx="256" cy="262" rx="170" ry="40" fill="url(#broth)"/>
+  <g fill="none" stroke="#fbe3a6" stroke-width="9" stroke-linecap="round">
+    <path d="M118 266c30-18 50 14 80-4s46 12 76-6"/><path d="M150 280c26-14 46 10 72-2s44 10 70-4 40 8 60-2"/>
+  </g>
+  <!-- egg -->
+  <ellipse cx="318" cy="250" rx="42" ry="26" fill="#fffaf0"/>
+  <ellipse cx="322" cy="250" rx="18" ry="13" fill="#f5a524"/>
+  <!-- greens -->
+  <g fill="#5fbf6a"><circle cx="196" cy="246" r="9"/><circle cx="222" cy="240" r="8"/><circle cx="178" cy="262" r="7"/><circle cx="244" cy="252" r="7"/><circle cx="380" cy="266" r="7"/></g>
+  <!-- chopsticks -->
+  <g stroke="#e9d2a8" stroke-width="14" stroke-linecap="round"><path d="M300 236 L436 96"/><path d="M322 242 L460 120"/></g>
+</svg>

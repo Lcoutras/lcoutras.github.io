@@ -26,6 +26,21 @@ async function keyOk(k: string): Promise<boolean> {
   return res.ok;
 }
 
+// Accounts edition: the page sends the signed-in person's own token. Check it, and charge their daily allowance.
+async function userOk(token: string): Promise<boolean> {
+  const url = Deno.env.get("SUPABASE_URL"), anon = Deno.env.get("SUPABASE_ANON_KEY");
+  if (!url || !anon || !token) return false;
+  try { const res = await fetch(`${url}/auth/v1/user`, { headers: { apikey: anon, Authorization: `Bearer ${token}` } }); return res.ok; } catch { return false; }
+}
+// Returns null when allowed (and the units left), or a message when the daily allowance is used up.
+async function chargeUnits(token: string, cost: number): Promise<{ left?: number; over?: boolean }> {
+  const url = Deno.env.get("SUPABASE_URL"), anon = Deno.env.get("SUPABASE_ANON_KEY");
+  if (!url || !anon) return {};
+  const res = await fetch(`${url}/rest/v1/rpc/sv_use`, { method: "POST", headers: { apikey: anon, Authorization: `Bearer ${token}`, "Content-Type": "application/json" }, body: JSON.stringify({ cost }) });
+  if (res.ok) { try { const j = await res.json(); return { left: Number(j.left) }; } catch { return {}; } }
+  const t = await res.text(); return /daily_limit/.test(t) ? { over: true } : {};
+}
+
 // ---------- photos: the main picture from recipe pages Claude used ----------
 const safePage = (u: string) => {
   try {
@@ -154,19 +169,34 @@ Deno.serve(async (req: Request) => {
   let body: { k?: string; prompt?: string; images?: { media_type: string; data: string }[]; ping?: boolean; web?: boolean; photos?: string[]; dish?: string; effort?: string; maxSearch?: number; maxFetch?: number; nudge?: boolean; fast?: boolean };
   try { body = await req.json(); } catch { return reply(400, { code: "invalid_argument", message: "Bad JSON" }); }
 
-  if (!(await keyOk(String(body.k || "")))) return reply(401, { code: "not_granted", message: "Family key not accepted" });
+  // Two ways in: a signed-in account (a token), or the old family link (a key) while it is still in use.
+  const bearer = (req.headers.get("authorization") || "").replace(/^Bearer\s+/i, "");
+  const isUser = !body.k && !!bearer && bearer !== req.headers.get("apikey") && bearer !== Deno.env.get("SUPABASE_ANON_KEY");
+  if (isUser) { if (!(await userOk(bearer))) return reply(401, { code: "not_granted", message: "Please sign in again." }); }
+  else if (!(await keyOk(String(body.k || "")))) return reply(401, { code: "not_granted", message: "Family key not accepted" });
+  let unitsLeft: number | undefined;
+  const ok200 = (o: Record<string, unknown>) => reply(200, unitsLeft === undefined ? o : { ...o, units_left: unitsLeft });
+  const charge = async (cost: number): Promise<Response | null> => {
+    if (!isUser || !cost) return null;
+    const c = await chargeUnits(bearer, cost);
+    if (c.over) return reply(429, { code: "daily_limit", message: "You have used today's Claude lookups. They reset overnight." });
+    if (c.left !== undefined) unitsLeft = c.left;
+    return null;
+  };
 
-  if (Array.isArray(body.photos)) return reply(200, { photos: await findPhotos(body.photos.map(String), Deno.env.get("ANTHROPIC_API_KEY"), String(body.dish || "").slice(0, 120)) });
+  if (Array.isArray(body.photos)) { const over = await charge(1); if (over) return over; }
+  if (Array.isArray(body.photos)) return ok200({ photos: await findPhotos(body.photos.map(String), Deno.env.get("ANTHROPIC_API_KEY"), String(body.dish || "").slice(0, 120)) });
 
   const apiKey = Deno.env.get("ANTHROPIC_API_KEY");
   if (!apiKey) return reply(503, { code: "not_configured", message: "Claude isn't switched on yet: the Anthropic API key hasn't been added." });
-  if (body.ping) return reply(200, { ok: true, model: MODEL });
+  if (body.ping) return ok200({ ok: true, model: MODEL });
 
   const prompt = String(body.prompt || "").slice(0, 60000);
   if (!prompt) return reply(400, { code: "invalid_argument", message: "Empty prompt" });
   const images = (Array.isArray(body.images) ? body.images : []).slice(0, 4)
     .filter((i) => i && /^image\/(jpeg|png|gif|webp)$/.test(i.media_type) && typeof i.data === "string" && i.data.length < 4_000_000);
 
+  { const over = await charge(body.fast ? 1 : body.web ? 5 : 1); if (over) return over; }
   const content: Anthropic.Beta.BetaContentBlockParam[] = [
     ...images.map((i) => ({ type: "image" as const, source: { type: "base64" as const, media_type: i.media_type as "image/jpeg", data: i.data } })),
     { type: "text" as const, text: prompt },
@@ -225,7 +255,7 @@ Deno.serve(async (req: Request) => {
     let last = -1;
     blocks.forEach((b, i) => { if (b.type === "server_tool_use" || b.type.endsWith("_tool_result")) last = i; });
     const text = blocks.slice(last + 1).filter((b) => b.type === "text").map((b) => b.text || "").join("");
-    return reply(200, { text, truncated: response.stop_reason === "max_tokens", searches: searched, fetches: fetched });
+    return ok200({ text, truncated: response.stop_reason === "max_tokens", searches: searched, fetches: fetched });
   } catch (err) {
     if (err instanceof Anthropic.RateLimitError) return reply(429, { code: "rate_limited", message: "Claude is busy. Try again in a minute." });
     if (err instanceof Anthropic.AuthenticationError) return reply(503, { code: "not_configured", message: "The Anthropic API key was not accepted." });
