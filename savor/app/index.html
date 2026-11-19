@@ -12,7 +12,7 @@
 <link rel="apple-touch-icon" sizes="180x180" href="../food-icon-180.png">
 <link rel="icon" href="../food-icon.svg" type="image/svg+xml">
 <script src="config.js?v=2"></script>
-<script src="shim.js?v=6"></script>
+<script src="shim.js?v=7"></script>
 <style>[hidden]{display:none!important}:root{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html,body{margin:0}body{font-size:16px}img{max-width:100%}</style>
 </head><body>
 
@@ -564,6 +564,9 @@ ol.method li::before{background:var(--accent);color:var(--accent-ink);font-famil
 .sharenudge h2{font-size:1.25rem;margin:0 0 2px}.sharenudge p{margin:0;color:var(--muted);font-size:.93rem}
 .sharenudge .row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
 @media (max-width:700px){.sharenudge{grid-template-columns:1fr}}
+
+.addcart{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-top:14px}
+.cartmsg{font-size:.85rem;color:var(--muted)}.cartmsg a{color:var(--accent);font-weight:600}
 </style>
 
 <div class="app">
@@ -582,7 +585,7 @@ ol.method li::before{background:var(--accent);color:var(--accent-ink);font-famil
   <div id="sideBooks"></div>
   <button class="collection textbtn" type="button" id="sideNewColl">＋ New collection</button>
   <div class="profile"><span class="avatar" id="avatar" aria-hidden="true">✳</span><div><span id="profName">Our kitchen</span><br><small>Your family cookbook</small></div></div>
-  <div class="buildstamp" id="buildStamp">Version Nov 19, 13:42 UTC</div>
+  <div class="buildstamp" id="buildStamp">Version Nov 19, 23:12 UTC</div>
 </aside>
 <div class="mainwrap">
   <header class="top">
@@ -1503,7 +1506,7 @@ function renderDetail(id){
     <section class="cols">
       <div class="panel${hl('ingredients')}"><h3>Ingredients
         <span class="tools"><span class="scaler" aria-label="Scale recipe"><button type="button" id="sdown" aria-label="Smaller batch">−</button><span>${servLabel}</span><button type="button" id="sup" aria-label="Bigger batch">+</button></span>${unitSeg()}</span></h3>
-        ${(r.ingredients||[]).length ? `<ul class="ing">${r.ingredients.map((l,i)=>`<li><label><input type="checkbox" id="ing-${i}"><span>${lineHTML(l,scale,state.units)}</span></label></li>`).join('')}</ul>${wasList('ingredients')}` : `<p class="status">No ingredients listed.</p>${state.sample && state.canWrite ? '<button class="btn primary small" type="button" id="fillMissing">Have Claude work out the ingredients and steps</button> <span id="fillmsg"></span>' : ''}`}
+        ${(r.ingredients||[]).length ? `<ul class="ing">${r.ingredients.map((l,i)=>`<li><label><input type="checkbox" id="ing-${i}"><span>${lineHTML(l,scale,state.units)}</span></label></li>`).join('')}</ul>${wasList('ingredients')}${state.canWrite ? `<div class="addcart"><button class="btn primary small" type="button" id="toGrocery">🛒 Add to grocery list</button><span id="cartmsg" class="cartmsg" role="status">${cartNote.id === r.id ? cartNote.html : ''}</span></div>` : ''}` : `<p class="status">No ingredients listed.</p>${state.sample && state.canWrite ? '<button class="btn primary small" type="button" id="fillMissing">Have Claude work out the ingredients and steps</button> <span id="fillmsg"></span>' : ''}`}
       </div>
       <div class="panel${hl('steps')}"><h3>Method</h3>
         ${(r.steps||[]).length ? `<ol class="method">${r.steps.map(s=>`<li><span>${esc(convTemps(s,state.units))}</span></li>`).join('')}</ol>${wasList('steps')}` : '<p class="status">No steps listed.</p>'}
@@ -1511,6 +1514,13 @@ function renderDetail(id){
         ${(r.basedOn||[]).length ? `<div class="notes sources"><b>Recipe sources Claude used</b><ul>${r.basedOn.map(u => { const su = safeUrl(u); let h = su; try{ h = new URL(su).hostname.replace(/^www\./,''); }catch{} return su ? `<li><a href="${esc(su)}" target="_blank" rel="noopener">${esc(h)}</a></li>` : ''; }).join('')}</ul></div>` : ''}
       </div>
     </section>`;
+  const tg = $('#toGrocery'); if(tg) tg.onclick = async () => {
+    tg.disabled = true; const say = h => { cartNote = { id: r.id, html: h }; const m = $('#cartmsg'); if(m) m.innerHTML = h; };
+    say('Adding…');
+    try{ const { added, dupes, full } = await addRecipeToGrocery(r, scale);
+      say(full ? 'The list is full. Clear checked items first.' : (added ? '✓ ' + added + ' added' : 'Already on your list') + (dupes && added ? ' (' + dupes + ' were already there)' : '') + ' · <a href="#grocery">View list</a>');
+    }catch{ say('Couldn’t add them. Try again.'); }
+    const b2 = $('#toGrocery'); if(b2) b2.disabled = false; };
   const steps = [.25,.5,1,1.5,2,3,4];
   const step = d => { if(base){ scale = Math.max(1, base*scale + d)/base; } else { const i = steps.indexOf(scale); scale = steps[Math.max(0,Math.min(steps.length-1,(i<0?2:i)+d))]; } renderDetail(id); };
   $('#sdown').onclick = () => step(-1); $('#sup').onclick = () => step(1);
@@ -1804,6 +1814,26 @@ Return ONLY JSON: {"items":[{"text":string,"aisle":string,"for":[recipe names]}]
   toast(n ? n+' items added to the grocery list' : 'Everything is already on the list');
 }
 
+let cartNote = { id: '', html: '' };   /* the 'added' note survives the page redrawing itself as the new items sync */
+/* One tap from a recipe: its ingredients (at the amounts you are viewing) go straight onto the grocery list. */
+async function addRecipeToGrocery(r, k){
+  const have = new Set(state.grocery.filter(g => !g.checked).map(g => g.text.toLowerCase()));
+  const t0 = Date.now(); const todo = [];
+  for(const l of (r.ingredients || [])){ const text = String(lineText(l, k, 'orig') || '').trim(); if(!text) continue;
+    const key = text.toLowerCase(); if(have.has(key)){ todo.push(null); continue; } have.add(key); todo.push(text); }
+  let added = 0, dupes = todo.filter(x => x === null).length, full = false;
+  await Promise.all(todo.map(async (text, i) => { if(text === null) return;
+    try{ await bdoc('grocery/'+newId('g')).set({ text, aisle: guessAisle(text), for: [r.title], checked: false, addedBy: state.me || '', createdAt: t0 + i }); added++; }
+    catch(e){ if(e && e.code === 'quota_exceeded') full = true; } }));
+  return { added, dupes, full };
+}
+/* The list as plain text (by aisle), for Messages, Notes, Reminders or a store's own app */
+function groceryAsText(){
+  const open = state.grocery.filter(g => !g.checked);
+  const groups = AISLES.map(a => [a, open.filter(g => (AISLES.includes(g.aisle) ? g.aisle : 'Other') === a).sort((x, y) => x.createdAt - y.createdAt)]).filter(([, l]) => l.length);
+  return 'Grocery list\n\n' + groups.map(([a, l]) => a + '\n' + l.map(g => '• ' + g.text).join('\n')).join('\n\n');
+}
+
 /* ---------- grocery ---------- */
 let clearAsk = false;
 function renderGrocery(){
@@ -1813,6 +1843,7 @@ function renderGrocery(){
   const groups = AISLES.map(a => [a, open.filter(g => (AISLES.includes(g.aisle)?g.aisle:'Other')===a).sort((x,y)=>x.createdAt-y.createdAt)]).filter(([,l])=>l.length);
   const li = g => `<li class="${g.checked?'done':''}"><label><input type="checkbox" data-ck="${esc(g.id)}" ${g.checked?'checked':''} ${state.canWrite?'':'disabled'}><span><span class="t">${esc(g.text)}</span>${(g.for||[]).length?`<span class="for">for ${esc(g.for.join(', '))}</span>`:''}</span></label>${state.canWrite?`<button class="x" type="button" data-del="${esc(g.id)}" aria-label="Remove ${esc(g.text)}">×</button>`:''}</li>`;
   view.innerHTML = `<div class="gtop"><h2>Grocery list</h2>
+      ${open.length ? `<button class="btn small" type="button" id="copyList">Copy list</button>${navigator.share ? '<button class="btn small" type="button" id="shareList">Send…</button>' : ''}` : ''}
       ${state.canWrite && done.length ? `<button class="btn small" type="button" id="clrDone">Clear ${done.length} checked</button>` : ''}
       ${state.canWrite && items.length ? (clearAsk ? '<span class="confirm">Clear the whole list? <button class="btn danger solid small" type="button" id="clrYes">Clear</button><button class="btn small" type="button" id="clrNo">Cancel</button></span>' : '<button class="btn ghost small danger" type="button" id="clrAll">Clear list</button>') : ''}</div>
     ${state.canWrite ? `<form class="addbar" id="addItem"><input id="newItem" placeholder="Add an item, e.g. paper towels" aria-label="Add an item" autocomplete="off"><button class="btn primary" type="submit">Add</button></form>` : ''}
@@ -1823,6 +1854,8 @@ function renderGrocery(){
     </div>`;
   view.querySelectorAll('[data-ck]').forEach(c => c.onchange = async () => { try{ await bdoc('grocery/'+c.dataset.ck).update({ checked: c.checked }); }catch{ c.checked = !c.checked; toast('Couldn’t update that item'); } });
   view.querySelectorAll('[data-del]').forEach(b => b.onclick = async () => { b.disabled=true; try{ await bdoc('grocery/'+b.dataset.del).delete(); }catch{ b.disabled=false; } });
+  const cl = $('#copyList'); if(cl) cl.onclick = async () => { try{ await navigator.clipboard.writeText(groceryAsText()); cl.textContent = 'Copied ✓'; setTimeout(() => { if(cl.isConnected) cl.textContent = 'Copy list'; }, 2000); }catch{ toast('Couldn’t copy. Try Send instead.'); } };
+  const sl = $('#shareList'); if(sl) sl.onclick = () => { navigator.share({ title: 'Grocery list', text: groceryAsText() }).catch(() => {}); };
   const f = $('#addItem'); if(f) f.onsubmit = async e => { e.preventDefault(); const inp = $('#newItem'); const t = inp.value.trim(); if(!t) return;
     inp.value=''; try{ await bdoc('grocery/'+newId('g')).set({ text:t, aisle: guessAisle(t), for:[], checked:false, addedBy: state.me||'', createdAt: Date.now() }); }catch(err){ inp.value=t; toast('Couldn’t add it ('+(err.code||'error')+')'); } inp.focus(); };
   if($('#clrDone')) $('#clrDone').onclick = async () => { $('#clrDone').disabled=true; for(const g of done){ try{ await bdoc('grocery/'+g.id).delete(); }catch{} } };

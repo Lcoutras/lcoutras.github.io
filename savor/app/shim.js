@@ -215,20 +215,22 @@
       async set(id, v){ const d = await open(); if(!d) return; try{ d.transaction('p', 'readwrite').objectStore('p').put(v, id); }catch{} },
       async wipe(){ try{ const d = await open(); if(d){ await new Promise(res => { try{ const tx = d.transaction('p', 'readwrite'); tx.objectStore('p').clear(); tx.oncomplete = tx.onerror = tx.onabort = () => res(); }catch{ res(); } }); } }catch{} }
     }; })();
-  function clearPhotoCache(){ photoCache.clear(); return idb.wipe(); }
+  let cacheGen = 0;   /* bumped when the saved photos are wiped, so a download still in flight is not saved afterwards */
+  function clearPhotoCache(){ cacheGen++; photoCache.clear(); return idb.wipe(); }
   let activeLoads = 0; const waiting = [];
   const pump = () => { while(activeLoads < 4 && waiting.length){ const job = waiting.shift(); activeLoads++; job().finally(() => { activeLoads--; pump(); }); } };
   const queued = fn => new Promise((ok, no) => { waiting.push(() => fn().then(ok, no)); pump(); });
   async function photo(id){
     if(photoCache.has(id)) return photoCache.get(id);
+    const gen = cacheGen;
     const p = (async () => {
       const saved = await idb.get(id); if(saved) return saved;
       for(let i = 0; i < 4; i++){
-        try{ const d = await queued(() => rpc('sv_photo_get', { pid: id })); if(d){ idb.set(id, d); return d; } return ''; }   /* nothing stored under that id */
+        try{ const d = await queued(() => rpc('sv_photo_get', { pid: id })); if(d){ if(gen === cacheGen) idb.set(id, d); return d; } return ''; }   /* nothing stored under that id */
         catch(e){ if(e && e.code === 'not_granted') return ''; await sleep(500 * (i + 1)); }
       }
       return '';
-    })().then(d => { if(d) photoCache.set(id, d); else photoCache.delete(id); return d; });
+    })().then(d => { if(d && gen === cacheGen) photoCache.set(id, d); else photoCache.delete(id); return d; });
     photoCache.set(id, p); return p;
   }
   const BLANK = 'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7';   /* a valid 1x1 image (the old one was broken, which made cards hide their own photo) */
