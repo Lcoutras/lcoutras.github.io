@@ -402,3 +402,8 @@ grant execute on function
   public.sv_set_role(text, uuid, text), public.sv_remove_member(text, uuid), public.sv_use(int)
   to authenticated;
 -- The old family-key functions (rb_*) stay as they are until the family book is moved over.
+
+-- Pin the search path of the three small helper functions
+alter function public.sv_merge(jsonb, jsonb) set search_path = public;
+alter function public.sv_new_id() set search_path = public;
+alter function public.sv_parent(text) set search_path = public;
