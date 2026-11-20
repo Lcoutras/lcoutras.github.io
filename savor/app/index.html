@@ -12,7 +12,7 @@
 <link rel="apple-touch-icon" sizes="180x180" href="../food-icon-180.png">
 <link rel="icon" href="../food-icon.svg" type="image/svg+xml">
 <script src="config.js?v=2"></script>
-<script src="shim.js?v=11"></script>
+<script src="shim.js?v=12"></script>
 <style>[hidden]{display:none!important}:root{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html,body{margin:0}body{font-size:16px}img{max-width:100%}</style>
 </head><body>
 
@@ -691,7 +691,7 @@ ol.method li::before{background:var(--accent);color:var(--accent-ink);font-famil
   <div id="sideBooks"></div>
   <button class="collection textbtn" type="button" id="sideNewColl">＋ New collection</button>
   <div class="profile"><span class="avatar" id="avatar" aria-hidden="true">✳</span><div><span id="profName">Our kitchen</span><br><small>Your family cookbook</small></div></div>
-  <div class="buildstamp" id="buildStamp">Version Nov 20, 04:23 UTC</div>
+  <div class="buildstamp" id="buildStamp">Version Nov 20, 04:35 UTC</div>
 </aside>
 <div class="mainwrap">
   <header class="top">
@@ -1893,7 +1893,7 @@ function filterSelectsHTML(all){
   const facetOpts = g => [...new Set(all.flatMap(r => canonList(r.tags)).filter(t => groupOf(t)===g))].sort((a,b)=>a.localeCompare(b));
   const sel = (g, label) => { const opts = facetOpts(g); return opts.length ? `<select data-facet="${g}" aria-label="${label}"><option value="">${label}</option>${opts.map(o=>`<option${state.facets[g]===o?' selected':''}>${esc(o)}</option>`).join('')}</select>` : ''; };
   const xs = (k, label, opts) => `<select data-extra="${k}" aria-label="${label}"><option value="">${label}</option>${opts.map(([v,l]) => `<option value="${v}"${state.extra[k]===v?' selected':''}>${l}</option>`).join('')}</select>`;
-  return `<div class="filters">${sel('Course','Course')}${sel('Region','Region')}${sel('Style','Style')}${sel('Diet','Diet')}${xs('protein','Protein',[['20','20 g+ protein'],['25','25 g+ (High)'],['30','30 g+ protein'],['40','40 g+ protein'],['forward','Protein-forward']])}${xs('time','Time',[['u30','Under 30 min'],['30-45','30–45 min'],['o45','Over 45 min']])}
+  return `<div class="filters">${sel('Course','Course')}${sel('Style','Style')}${sel('Diet','Diet')}${xs('protein','Protein',[['20','20 g+ protein'],['25','25 g+ (High)'],['30','30 g+ protein'],['40','40 g+ protein'],['forward','Protein-forward']])}${xs('time','Time',[['u30','Under 30 min'],['30-45','30–45 min'],['o45','Over 45 min']])}
       <button class="chip${state.weekOnly?' on':''}" type="button" data-k="week" aria-pressed="${!!state.weekOnly}">This week’s meals (${thisWeekIds().size})</button></div>
     <div class="filters" ${state.moreF ? '' : 'hidden'}>${sel('Method','Method')}${sel('Main ingredient','Main ingredient')}${xs('status','Cooking status',[['tocook','Want to cook'],['cooked','Already cooked']])}${state.me ? xs('who','Added by',[['me','Added by me'],['others','Added by family']]) : ''}</div>`;
 }
