@@ -12,7 +12,7 @@
 <link rel="apple-touch-icon" sizes="180x180" href="../food-icon-180.png">
 <link rel="icon" href="../food-icon.svg" type="image/svg+xml">
 <script src="config.js?v=2"></script>
-<script src="shim.js?v=8"></script>
+<script src="shim.js?v=9"></script>
 <style>[hidden]{display:none!important}:root{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html,body{margin:0}body{font-size:16px}img{max-width:100%}</style>
 </head><body>
 
@@ -572,6 +572,9 @@ ol.method li::before{background:var(--accent);color:var(--accent-ink);font-famil
 .ptag.fwd{background:var(--accent);border-color:var(--accent);color:var(--accent-ink,#fff)}
 .pnote{margin:6px 0 0;font-size:.82rem;color:var(--muted)}
 #estWrap .textbtn{padding:2px 4px}
+
+.dupnote{background:color-mix(in srgb,#e0a030 14%,var(--surface));border:1px solid color-mix(in srgb,#e0a030 55%,var(--line));border-radius:14px;padding:10px 14px;margin:8px 0;font-size:.92rem}
+.dupnote p{margin:4px 0 8px;color:var(--ink)}.dupnote .row{display:flex;gap:8px;flex-wrap:wrap}
 </style>
 
 <div class="app">
@@ -590,7 +593,7 @@ ol.method li::before{background:var(--accent);color:var(--accent-ink);font-famil
   <div id="sideBooks"></div>
   <button class="collection textbtn" type="button" id="sideNewColl">＋ New collection</button>
   <div class="profile"><span class="avatar" id="avatar" aria-hidden="true">✳</span><div><span id="profName">Our kitchen</span><br><small>Your family cookbook</small></div></div>
-  <div class="buildstamp" id="buildStamp">Version Nov 19, 23:33 UTC</div>
+  <div class="buildstamp" id="buildStamp">Version Nov 20, 03:34 UTC</div>
 </aside>
 <div class="mainwrap">
   <header class="top">
@@ -2046,6 +2049,47 @@ async function lateResearch(rid, full, imp){
 }
 const seenMarked = new Set();
 function markSeen(r){ if(r && fillBusy(r) && !r.seenWhileFilling && state.canWrite && !seenMarked.has(r.id)){ seenMarked.add(r.id); bdoc('recipes/'+r.id).update({ seenWhileFilling: true }).catch(() => {}); } }
+/* ---------- possible duplicates ----------
+   Three signals: the same link, a very similar title, or nearly the same ingredients. */
+const TITLE_NOISE = /\b(the|a|an|and|with|recipe|recipes|easy|best|homemade|quick|simple|my|our|how|to|make)\b/g;
+const stem = w => w.replace(/ies$/, 'y').replace(/(ches|shes|xes)$/, m => m.slice(0, -2)).replace(/s$/, '');
+const titleWords = t => new Set(String(t || '').toLowerCase().normalize('NFKD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9 ]+/g, ' ').replace(TITLE_NOISE, ' ').split(/\s+/).filter(w => w.length > 1).map(stem));
+function titlesSimilar(a, b){
+  const A = titleWords(a), B = titleWords(b); if(!A.size || !B.size) return false;
+  const inter = [...A].filter(w => B.has(w)).length, union = new Set([...A, ...B]).size, jac = inter / union;
+  const small = Math.min(A.size, B.size);
+  return jac >= 0.75 || (small >= 2 && inter === small && jac >= 0.5);   /* "Pasta with Sausage and Arugula" matches "Paccheri Pasta with Sausage and Arugula", but "Chicken Pasta" does not match "Sun Dried Tomato Creamy Chicken Pasta" */
+}
+const UNIT_WORDS = new Set('cup cups tbsp tablespoon tablespoons tsp teaspoon teaspoons oz ounce ounces lb lbs pound pounds g gram grams kg ml l liter can cans clove cloves pinch dash large small medium big handful bunch slice slices piece pieces stick sticks package packet to taste of for or fresh dried chopped diced minced sliced optional divided plus more about'.split(' '));
+function ingredientWords(list){
+  const w = new Set();
+  for(const l of (list || [])) for(const x of String(l || '').toLowerCase().replace(/\([^)]*\)/g, ' ').replace(/[^a-z ]+/g, ' ').split(/\s+/))
+    if(x.length > 2 && !UNIT_WORDS.has(x) && !COMMON_WORDS.has(x)) w.add(stem(x));
+  return w;
+}
+const COMMON_WORDS = new Set('salt pepper black water oil olive extra virgin kosher ground freshly grated chopped minced sliced diced large medium small whole plus serving garnish taste into pieces thinly finely roughly cut peeled halved cloves'.split(' '));
+function ingredientsSimilar(a, b){
+  if((a || []).length < 5 || (b || []).length < 5) return false;
+  const A = ingredientWords(a), B = ingredientWords(b); if(A.size < 5 || B.size < 5) return false;
+  const inter = [...A].filter(x => B.has(x)).length; return inter >= 5 && inter / new Set([...A, ...B]).size >= 0.7;
+}
+/* Everything in the cookbook that might be the same recipe, strongest match first. */
+function findDuplicates(cand, exceptId){
+  const out = [], key = cand.sourceUrl ? linkKey(cand.sourceUrl) : '';
+  for(const r of (state.recipes || [])){ if(r.id === exceptId) continue;
+    if(key && linkKey(r.sourceUrl) === key) out.push({ r, why: 'link', rank: 0 });
+    else if(cand.title && r.title && titlesSimilar(cand.title, r.title)) out.push({ r, why: 'title', rank: 1 });
+    else if((cand.ingredients || []).length >= 5 && ingredientsSimilar(cand.ingredients, r.ingredients)) out.push({ r, why: 'ingredients', rank: 2 }); }
+  return out.sort((a, b) => a.rank - b.rank);
+}
+const dupWhen = r => { try{ return new Date(r.createdAt || Date.now()).toLocaleDateString(undefined, { month: 'short', day: 'numeric' }); }catch{ return ''; } };
+function dupHTML(dups, withButtons, anywayLabel){
+  const d = dups[0], r = d.r;
+  const what = d.why === 'link' ? 'This link is already in your cookbook' : d.why === 'title' ? 'You may already have this recipe' : 'The ingredients are almost the same as a recipe you already have';
+  return `<div class="dupnote" role="alert"><b>⚠ Possible duplicate</b><p>${what}: <b>${esc(r.title || 'Untitled recipe')}</b>, saved by ${esc(who(r.addedBy) || 'someone')} on ${esc(dupWhen(r))}${dups.length > 1 ? ' (and ' + (dups.length - 1) + ' more like it)' : ''}.</p>
+    <div class="row"><a class="btn small" href="#r-${esc(r.id)}">Open it</a>${withButtons ? `<button class="btn small primary" type="button" data-dupgo>${esc(anywayLabel || 'Add it anyway')}</button>` : ''}</div></div>`;
+}
+
 const filling = new Set();
 const fillBusy = r => r && (r.fillStatus === 'pending' || r.fillStatus === 'working' || r.fillStatus === 'draft');
 async function fillLater(id, seed){
@@ -2340,6 +2384,7 @@ function renderEditor(id){
     ${mode==='link' ? `<section class="box claude-box">
       <div class="field"><label for="f-url">Link</label><input id="f-url" type="url" inputmode="url" placeholder="Paste the link to the post" value="${esc(d.sourceUrl)}"></div>
       <div class="field"><label for="f-dish">Title</label><input id="f-dish" placeholder="What’s the dish? e.g. Marry Me chicken pasta" enterkeyhint="go" value="${esc(d._dish||'')}"></div>
+      <div data-dup></div>
       ${d._needHelp ? `<div class="helpbox"><b>Optional extras.</b> Anything here helps Claude when a link alone doesn’t say what the dish is.</div>
       <div class="field"><label for="f-cap">Or paste the caption</label><small>Tap “more” on the caption and copy all of it.</small><textarea id="f-cap" placeholder="Paste here" style="min-height:90px">${esc(d._caption||'')}</textarea></div>
       ${state.imgOK ? `<div class="field"><span class="lbl">Or add screenshots or the video <small>(Claude reads up to ${state.imgMax} images; a video is turned into stills)</small></span>
@@ -2353,6 +2398,7 @@ function renderEditor(id){
     <section class="box" ${showForm?'':'hidden'}>
       <h3>Recipe</h3>
       <div class="field"><label for="f-title">Name</label><input id="f-title" required value="${esc(d.title)}" placeholder="Crispy chili garlic noodles"></div>
+      ${id ? '' : '<div data-dup></div>'}
       ${mode!=='link' ? `<div class="field"><label for="f-url">Link <small>(optional)</small></label><input id="f-url" type="url" value="${esc(d.sourceUrl)}"></div>` : ''}
       <div class="row">
         <div class="field"><label for="f-serv">Servings</label><input id="f-serv" type="number" min="0" inputmode="numeric" value="${esc(d.servings)}"></div>
@@ -2399,7 +2445,13 @@ function renderEditor(id){
   };
   form.addEventListener('input', sync);
   form.addEventListener('input', () => { d._touched = true; });
-  const lf = $('#lookFresh'); if(lf) lf.onclick = () => { sync(); d._noReuse = true; d._filled = false; d.photoId = (d.photoId && existing && existing.photoId === d.photoId) ? d.photoId : ''; renderEditor(id); const rb = $('#read'); if(rb) rb.click(); };
+  /* While you type a link or a title: tell you if the cookbook already has it */
+  const updateDupNote = () => { if(id) return; sync();
+    const dups = findDuplicates({ sourceUrl: d.sourceUrl, title: d._dish || d.title, ingredients: d.ingredients }, null);
+    form.querySelectorAll('[data-dup]').forEach(el => { el.innerHTML = dups.length ? dupHTML(dups, false) : ''; }); };
+  let dupT = 0; form.addEventListener('input', e => { if(['f-url','f-dish','f-title','f-ing'].includes(e.target.id)){ clearTimeout(dupT); dupT = setTimeout(updateDupNote, 450); } });
+  if(!id) setTimeout(updateDupNote, 0);
+  const lf = $('#lookFresh'); if(lf) lf.onclick = () => { sync(); d._noReuse = true; d._allowDup = true; d._filled = false; d.photoId = (d.photoId && existing && existing.photoId === d.photoId) ? d.photoId : ''; renderEditor(id); const rb = $('#read'); if(rb) rb.click(); };
   const ur = $('#useResearch'); if(ur) ur.onclick = () => { sync(); if(d._research){ applyReadOut(d, d._research, false); d._research = null; d._touched = false; renderEditor(id); autoPhotoFor(id); } };
   const coverIdx = () => { const i = d._cover==null ? 0 : d._cover; return i>=0 && i<shots.length ? i : -1; };
   const drawPreview = () => { const p = $('#pprev'), n = $('#photoNote'); if(!p) return; p.innerHTML = '';
@@ -2567,6 +2619,8 @@ function renderEditor(id){
   if(slBtn) slBtn.onclick = async () => {
     sync(); const msg = $('#readmsg');
     if(!d._dish){ msg.innerHTML = '<span class="msg err">Type the dish’s title.</span>'; $('#f-dish').focus(); return; }
+    { const dups = d._allowDup ? [] : findDuplicates({ sourceUrl: d.sourceUrl, title: d._dish }, null).filter(x => x.why !== 'ingredients');
+      if(dups.length){ msg.innerHTML = dupHTML(dups, true, 'Save it again anyway'); msg.querySelector('[data-dupgo]').onclick = () => { d._allowDup = true; d._dupOk = true; msg.innerHTML = ''; slBtn.click(); }; return; } }
     if(shots.length){ msg.innerHTML = '<span class="msg err">Claude has to read screenshots now. Tap Get the recipe instead.</span>'; return; }
     slBtn.disabled = true;
     try{
@@ -2584,6 +2638,8 @@ function renderEditor(id){
   if(readBtn) readBtn.onclick = async () => {
     sync(); const msg = $('#readmsg');
     if(!d._dish){ msg.innerHTML = '<span class="msg err">Type the dish’s title.</span>'; $('#f-dish').focus(); return; }
+    { const dups = d._allowDup ? [] : findDuplicates({ sourceUrl: d.sourceUrl, title: d._dish }, null).filter(x => x.why !== 'ingredients');
+      if(dups.length){ msg.innerHTML = dupHTML(dups, true, 'Get it again anyway'); msg.querySelector('[data-dupgo]').onclick = () => { d._allowDup = true; d._dupOk = true; msg.innerHTML = ''; readBtn.click(); }; return; } }
     const hit = !d._noReuse && !shots.length && !(d._caption||'').trim() ? findReuse(d.sourceUrl) : null;
     if(hit){ const f = reuseFields(hit);
       d._filled = true; d.title = d._dish || d.title || hit.title; Object.assign(d, { ingredients: f.ingredients.slice(), steps: f.steps.slice(), tags: f.tags.slice(), notes: f.notes, inferred: f.inferred, basedOn: f.basedOn.slice(), nutrition: f.nutrition });
@@ -2632,6 +2688,8 @@ function renderEditor(id){
     e.preventDefault(); sync();
     const sm = $('#savemsg');
     if(!d.title){ sm.innerHTML='<span class="msg err">Give the recipe a name.</span>'; $('#f-title').focus(); return; }
+    if(!id && !d._dupOk){ const dups = findDuplicates({ sourceUrl: d.sourceUrl, title: d.title, ingredients: d.ingredients }, null);
+      if(dups.length){ sm.innerHTML = dupHTML(dups, true, 'Save anyway'); sm.querySelector('[data-dupgo]').onclick = () => { d._dupOk = true; sm.innerHTML = ''; form.requestSubmit(); }; sm.scrollIntoView({ block: 'center' }); return; } }
     const btn = $('#save'); btn.disabled = true; sm.innerHTML = '<span class="msg"><span class="spin"></span> Saving…</span>';
     try{
       const ci = coverIdx();
