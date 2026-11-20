@@ -12,7 +12,7 @@
 <link rel="apple-touch-icon" sizes="180x180" href="../food-icon-180.png">
 <link rel="icon" href="../food-icon.svg" type="image/svg+xml">
 <script src="config.js?v=2"></script>
-<script src="shim.js?v=12"></script>
+<script src="shim.js?v=13"></script>
 <style>[hidden]{display:none!important}:root{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html,body{margin:0}body{font-size:16px}img{max-width:100%}</style>
 </head><body>
 
@@ -691,7 +691,7 @@ ol.method li::before{background:var(--accent);color:var(--accent-ink);font-famil
   <div id="sideBooks"></div>
   <button class="collection textbtn" type="button" id="sideNewColl">＋ New collection</button>
   <div class="profile"><span class="avatar" id="avatar" aria-hidden="true">✳</span><div><span id="profName">Our kitchen</span><br><small>Your family cookbook</small></div></div>
-  <div class="buildstamp" id="buildStamp">Version Nov 20, 04:35 UTC</div>
+  <div class="buildstamp" id="buildStamp">Version Nov 20, 04:40 UTC</div>
 </aside>
 <div class="mainwrap">
   <header class="top">
@@ -887,6 +887,10 @@ function canonLabel(t){ t = String(t||'').trim().replace(/\s+/g,' ').slice(0,40)
   const hit = allLabels().find(l => l.toLowerCase()===t.toLowerCase()); return hit || (t.charAt(0).toUpperCase() + t.slice(1)); }
 const canonList = a => { const out=[]; for(const x of (a||[])){ const c = canonLabel(x); if(c && !out.some(o=>o.toLowerCase()===c.toLowerCase())) out.push(c); } return out; };
 /* Label picker: pick from the list, or type a new one and press Enter (like Jira labels) */
+const isRegionTag = t => groupOf(t)==='Region';
+const nonRegion = tags => canonList(tags).filter(t => !isRegionTag(t));
+const withRegion = (tags, reg) => reg ? [...tags.filter(t => !isRegionTag(t)), reg] : tags.filter(t => !isRegionTag(t));
+const regionSelectHTML = (cur, id) => `<select id="${id}" aria-label="Region"><option value="">Not set</option>${LABEL_GROUPS.Region.map(o=>`<option${o===cur?' selected':''}>${esc(o)}</option>`).join('')}</select>`;
 function labelPicker(host, selected, onChange){
   if(!host) return; let hi = 0;
   host.innerHTML = `<div class="lp"><div class="lp-box"><span class="lp-chips"></span><input class="lp-in" id="${host.id}-in" placeholder="Add a category…" autocomplete="off" role="combobox" aria-expanded="false" aria-autocomplete="list" aria-label="Add a category"></div><ul class="lp-menu" role="listbox" hidden></ul></div>`;
@@ -895,7 +899,7 @@ function labelPicker(host, selected, onChange){
   const draw = () => { chips.innerHTML = selected.map((l,i)=>`<span class="lbl-chip">${esc(l)}<button type="button" data-i="${i}" aria-label="Remove ${esc(l)}">×</button></span>`).join('');
     chips.querySelectorAll('button').forEach(b => b.onclick = () => { selected.splice(+b.dataset.i,1); changed(); inp.focus(); }); };
   const options = () => { const q = inp.value.trim().toLowerCase(); const sel = new Set(selected.map(x=>x.toLowerCase()));
-    let o = allLabels().filter(l => !sel.has(l.toLowerCase()) && (!q || l.toLowerCase().includes(q)));
+    let o = allLabels().filter(l => groupOf(l)!=='Region' && !sel.has(l.toLowerCase()) && (!q || l.toLowerCase().includes(q)));
     if(q) o.sort((a,b) => (b.toLowerCase().startsWith(q)) - (a.toLowerCase().startsWith(q)));
     else { const gi = l => { const g = groupOf(l); return g==='Other' ? 99 : GROUP_ORDER.indexOf(g); }; const pi = l => PRESET_LABELS.findIndex(x=>x.toLowerCase()===l.toLowerCase());
       o.sort((a,b) => gi(a)-gi(b) || (pi(a)<0?999:pi(a)) - (pi(b)<0?999:pi(b)) || a.localeCompare(b)); }
@@ -1699,9 +1703,10 @@ function renderDetail(id){
           <div class="fact"><small>Fat</small><b>${Math.round(n.fat||0)}g</b></div>
           <span class="est">${proteinBadge(proteinInfo(r))} Per serving, estimated by Claude.${state.sample&&state.canWrite?' <button class="btn ghost small" type="button" id="estN">Re-estimate</button>':''}</span>`
           : (state.sample && state.canWrite ? '<button class="btn small" type="button" id="estN">Estimate calories & macros</button>' : '')}</div>
+        <div class="cats${hl('tags')}"><span class="lbl">Region</span>${state.canWrite ? regionSelectHTML(regionOf(r), 'regionSel') : `<span class="lbl-chip">${esc(regionOf(r) || 'Not set')}</span>`}</div>
         <div class="cats${hl('tags')}"><span class="lbl">Categories</span>
           ${catsOpen ? '<div id="detailCats" style="flex:1 1 100%"></div><button class="btn small" type="button" id="catsDone">Done</button>' :
-            `${canonList(r.tags).filter(t => !HIDDEN_TAGS.has(String(t).toLowerCase())).sort((a,b)=>{ const gi = l => { const g = groupOf(l); return g==='Other'?99:GROUP_ORDER.indexOf(g); }; return gi(a)-gi(b); }).map(t=>`<span class="lbl-chip" title="${esc(groupOf(t))}"><span class="lbl-g">${esc(groupOf(t)==='Other'?'':groupOf(t)==='Main ingredient'?'Main':groupOf(t))}</span>${esc(t)}</span>`).join('') || '<span class="status" style="margin:0">None yet</span>'}${state.canWrite ? `<button class="btn ghost small" type="button" id="catsEdit">${(r.tags||[]).length?'Edit':'+ Add categories'}</button>` : ''}`}</div>
+            `${canonList(r.tags).filter(t => !isRegionTag(t) && !HIDDEN_TAGS.has(String(t).toLowerCase())).sort((a,b)=>{ const gi = l => { const g = groupOf(l); return g==='Other'?99:GROUP_ORDER.indexOf(g); }; return gi(a)-gi(b); }).map(t=>`<span class="lbl-chip" title="${esc(groupOf(t))}"><span class="lbl-g">${esc(groupOf(t)==='Other'?'':groupOf(t)==='Main ingredient'?'Main':groupOf(t))}</span>${esc(t)}</span>`).join('') || '<span class="status" style="margin:0">None yet</span>'}${state.canWrite ? `<button class="btn ghost small" type="button" id="catsEdit">${(r.tags||[]).length?'Edit':'+ Add categories'}</button>` : ''}`}</div>
         ${(r.cookbooks||[]).length?`<div class="tags" style="margin-top:10px">${(r.cookbooks||[]).map(b=>`<span class="tag book">▤ ${esc(b)}</span>`).join('')}</div>`:''}
         <div class="actions">
           ${(r.steps||[]).length?`<a class="btn primary" href="#cook-${esc(r.id)}">Start cooking →</a>`:''}
@@ -1776,8 +1781,9 @@ function renderDetail(id){
   bindPasteBox($('#detailPaste'), setPhoto);
   const ce = $('#catsEdit'); if(ce) ce.onclick = () => { catsOpen = true; renderDetail(id); const i = $('#detailCats-in'); if(i) i.focus(); };
   const cd = $('#catsDone'); if(cd) cd.onclick = () => { catsOpen = false; renderDetail(id); };
-  if($('#detailCats')) labelPicker($('#detailCats'), canonList(r.tags), list => { clearTimeout(catsTimer);
-    catsTimer = setTimeout(async () => { try{ await bdoc('recipes/'+id).update({ tags: list }); }catch(e){ toast('Couldn’t save categories ('+(e.code||'error')+')'); } }, 400); });
+  const rs = $('#regionSel'); if(rs) rs.onchange = async () => { try{ await bdoc('recipes/'+id).update({ tags: withRegion(canonList(r.tags), rs.value) }); toast(rs.value ? 'Region: '+rs.value : 'Region cleared'); }catch(e){ toast('Couldn’t save the region ('+(e.code||'error')+')'); } };
+  if($('#detailCats')) labelPicker($('#detailCats'), nonRegion(r.tags), list => { clearTimeout(catsTimer);
+    catsTimer = setTimeout(async () => { try{ await bdoc('recipes/'+id).update({ tags: withRegion(list, regionOf(r)) }); }catch(e){ toast('Couldn’t save categories ('+(e.code||'error')+')'); } }, 400); });
   const ok = $('#okBtn'); if(ok) ok.onclick = async () => { ok.disabled = true; try{ await bdoc('recipes/'+id).update({ needsReview:false }); }catch{ ok.disabled=false; } };
   const en = $('#estN'); if(en) en.onclick = () => estimateNutrition(r, en);
   const del = $('#del');
@@ -2609,6 +2615,7 @@ function renderEditor(id){
       ${state.sample ? `<div class="suggestbar"><span>Missing ingredients, amounts or steps? Claude can work them out from the dish name, photo and similar recipes.</span><button class="btn small" type="button" id="suggest">Suggest what’s missing</button><span id="sugmsg"></span></div>` : ''}
       <div class="field"><label for="f-ing">Ingredients</label><small>One per line, amount first. That’s what lets you resize, convert units and build the grocery list.</small><textarea id="f-ing" style="min-height:170px" placeholder="2 cups cooked rice&#10;1 tbsp soy sauce">${esc((d.ingredients||[]).join('\n'))}</textarea></div>
       <div class="field"><label for="f-steps">Instructions</label><small>One step per line. Times like “bake 20 minutes” become timers in cooking mode.</small><textarea id="f-steps" style="min-height:190px">${esc((d.steps||[]).join('\n'))}</textarea></div>
+      <div class="field"><label for="editRegion">Region</label><small>Where the dish comes from. Change it if it was guessed wrong.</small>${regionSelectHTML(regionOf(d), 'editRegion')}</div>
       <div class="field"><label for="editCats-in">Categories</label><small>Pick from the list, or type a new one and press Enter. New categories are shared with everyone.</small><div id="editCats"></div></div>
       <div class="field"><span class="lbl">Cookbooks</span><small>Group recipes, like “Weeknight dinners” or “Mom’s favorites”.</small>
         <div class="bookpick" id="bookpick">${books.map(b=>`<button class="chip book" type="button" data-book="${esc(b)}" aria-pressed="${d.cookbooks.includes(b)}">▤ ${esc(b)}</button>`).join('')}
@@ -2778,7 +2785,8 @@ function renderEditor(id){
 
   bindPasteBox($('#editPaste'), f => { photoFile = f; d.photoPos = null; d.photoFit = null; d._crop = null; d._cropDirty = false; d.photoCredit = ''; drawPreview(); if($('#shots')) showShots(); toast('Photo added. It saves with the recipe.'); });
   const gi = $('#gImg'); if(gi) form.addEventListener('input', e => { if(e.target.id==='f-title' || e.target.id==='f-dish') gi.href = googleImg(e.target.value); });
-  d.tags = canonList(d.tags); labelPicker($('#editCats'), d.tags.slice(), list => { d.tags = list; });
+  d.tags = canonList(d.tags); let edReg = regionOf(d); labelPicker($('#editCats'), nonRegion(d.tags), list => { d.tags = withRegion(list, edReg); });
+  const er = $('#editRegion'); if(er) er.onchange = () => { edReg = er.value; d.tags = withRegion(d.tags, edReg); };
   const fp = $('#findPhoto'); if(fp) fp.onclick = async () => { sync(); fp.disabled = true; fp.textContent = 'Looking…';
     try{ const list = await window.RecipeBoxWeb.findPhotos(photoPages(d), d.title || d._dish); d._photoPicks = list;
       if(!list.length) toast('No photo found on those pages. Try Find a photo on Google.');
