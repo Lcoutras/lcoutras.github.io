@@ -510,7 +510,9 @@
   /* ---------- the doorway the app uses ---------- */
   const caps = { db, user, assets };
   window.claude = Object.freeze({ use: async name => { await ready; if(name === 'sample') return claudeOn(); return caps[name] || null; } });
-  window.RecipeBoxWeb = { familyLink: () => location.href, openShare, recheckClaude: () => { claudeReady = null; return claudeOn(); }, signedInAs: () => me };
+  window.RecipeBoxWeb = { familyLink: () => location.href, openShare,
+    books: () => ({ list: books.map(b => ({ id: b.id, name: b.name, role: b.role })), active: activeBook }),
+    openBook: async id => { try{ await rpc('sv_set_home', { book: id }); }catch{} location.hash = ''; location.reload(); }, recheckClaude: () => { claudeReady = null; return claudeOn(); }, signedInAs: () => me };
   window.RecipeBoxWeb.findPhotos = async (urls, dish, importId) => {
     const r = await callClaude({ photos: (urls || []).filter(Boolean).slice(0, 5), dish: dish || '', ...(importId ? { import_id: importId } : {}) });
     return (r.photos || []).map(p => { const bin = atob(p.data); const a = new Uint8Array(bin.length); for(let i = 0; i < bin.length; i++) a[i] = bin.charCodeAt(i);

@@ -12,7 +12,7 @@
 <link rel="apple-touch-icon" sizes="180x180" href="../food-icon-180.png">
 <link rel="icon" href="../food-icon.svg" type="image/svg+xml">
 <script src="config.js?v=2"></script>
-<script src="shim.js?v=9"></script>
+<script src="shim.js?v=10"></script>
 <style>[hidden]{display:none!important}:root{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html,body{margin:0}body{font-size:16px}img{max-width:100%}</style>
 </head><body>
 
@@ -575,11 +575,89 @@ ol.method li::before{background:var(--accent);color:var(--accent-ink);font-famil
 
 .dupnote{background:color-mix(in srgb,#e0a030 14%,var(--surface));border:1px solid color-mix(in srgb,#e0a030 55%,var(--line));border-radius:14px;padding:10px 14px;margin:8px 0;font-size:.92rem}
 .dupnote p{margin:4px 0 8px;color:var(--ink)}.dupnote .row{display:flex;gap:8px;flex-wrap:wrap}
+
+/* ================= phone layout ================= */
+.bottomnav,.fab,.moresheet,.phonebook{display:none}
+@media (max-width:700px){
+  .side{position:sticky!important;top:0;z-index:30;width:auto!important;display:flex!important;align-items:center;justify-content:space-between;gap:12px;padding:max(10px,env(safe-area-inset-top,0px)) max(16px,env(safe-area-inset-right,0px)) 10px max(16px,env(safe-area-inset-left,0px))!important;border:0!important;border-bottom:1px solid var(--line)!important;background:color-mix(in srgb,var(--bg) 90%,transparent);-webkit-backdrop-filter:blur(12px);backdrop-filter:blur(12px)}
+  .side .nav,.side .sub,.side .label,.side #sideBooks,.side #sideNewColl,.side .profile,.side .buildstamp,#svAcct,#svBadge{display:none!important}
+  .logo{font-size:26px!important;margin:0!important}
+  .phonebook{display:inline-flex;align-items:center;max-width:62%;min-width:0;padding:7px 14px;border:1px solid var(--line);border-radius:999px;background:var(--surface);color:var(--ink);font:inherit;font-size:.86rem;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;cursor:pointer}
+  .phonebook[hidden]{display:none}
+  header.top{display:none!important}
+  .mainwrap{padding:14px max(16px,env(safe-area-inset-right,0px)) calc(92px + env(safe-area-inset-bottom,0px)) max(16px,env(safe-area-inset-left,0px))!important}
+  /* bottom tabs */
+  .bottomnav{display:grid;grid-template-columns:repeat(5,1fr);position:fixed;left:0;right:0;bottom:0;z-index:40;background:color-mix(in srgb,var(--surface) 94%,transparent);-webkit-backdrop-filter:blur(14px);backdrop-filter:blur(14px);border-top:1px solid var(--line);padding:6px max(6px,env(safe-area-inset-right,0px)) calc(6px + env(safe-area-inset-bottom,0px)) max(6px,env(safe-area-inset-left,0px))}
+  .bottomnav a,.bottomnav button{position:relative;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;min-height:52px;padding:4px 2px;border:0;background:transparent;color:var(--muted);font:inherit;font-size:.68rem;font-weight:600;text-decoration:none;border-radius:14px;cursor:pointer;-webkit-tap-highlight-color:transparent}
+  .bottomnav [aria-current="page"]{color:var(--accent);background:color-mix(in srgb,var(--accent) 12%,transparent)}
+  .bbadge{position:absolute;top:2px;left:calc(50% + 6px);min-width:17px;height:17px;padding:0 4px;border-radius:999px;background:var(--accent);color:var(--accent-ink,#fff);font-size:.62rem;display:grid;place-items:center}
+  .bbadge[hidden]{display:none}
+  body[data-route="edit"] .bottomnav,body[data-route="cook"] .bottomnav,body[data-route="start"] .bottomnav{display:none}
+  body[data-route="edit"] .mainwrap,body[data-route="cook"] .mainwrap{padding-bottom:calc(24px + env(safe-area-inset-bottom,0px))!important}
+  /* floating add */
+  .fab{display:grid;place-items:center;position:fixed;right:max(18px,env(safe-area-inset-right,0px));bottom:calc(76px + env(safe-area-inset-bottom,0px));width:56px;height:56px;border-radius:50%;border:0;background:var(--accent);color:var(--accent-ink,#fff);font-size:30px;line-height:1;box-shadow:0 8px 22px rgba(0,0,0,.35);z-index:41;cursor:pointer}
+  .fab[hidden]{display:none}
+  .toast{bottom:calc(86px + env(safe-area-inset-bottom,0px))}
+  body[data-route="edit"] .toast,body[data-route="cook"] .toast{bottom:calc(20px + env(safe-area-inset-bottom,0px))}
+  /* More sheet */
+  .moresheet{display:block;position:fixed;inset:0;z-index:60}
+  .moresheet[hidden]{display:none}
+  .ms-back{position:absolute;inset:0;background:rgba(6,10,18,.6)}
+  .ms-panel{position:absolute;left:0;right:0;bottom:0;max-height:86vh;overflow:auto;background:var(--bg);border-top-left-radius:22px;border-top-right-radius:22px;padding:8px 16px calc(18px + env(safe-area-inset-bottom,0px));box-shadow:0 -10px 40px rgba(0,0,0,.4);animation:sheetUp .2s ease-out}
+  @keyframes sheetUp{from{transform:translateY(40px);opacity:.4}to{transform:none;opacity:1}}
+  .ms-grip{width:42px;height:5px;border-radius:99px;background:var(--line);margin:4px auto 10px}
+  .ms-who{display:flex;align-items:center;gap:12px;margin-bottom:10px}.ms-who div{flex:1;min-width:0}.ms-who b{display:block}.ms-who small{display:block;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .ms-x{border:0;background:var(--sunk);color:var(--ink);width:36px;height:36px;border-radius:50%;font-size:1.3rem;cursor:pointer}
+  .ms-h{font-size:.74rem;letter-spacing:.07em;text-transform:uppercase;color:var(--muted);margin:12px 4px 6px}
+  .ms-list{display:grid;gap:6px}
+  .ms-item{display:flex;align-items:center;gap:12px;min-height:50px;padding:10px 14px;border:1px solid var(--line);border-radius:14px;background:var(--surface);color:var(--ink);font:inherit;font-size:1rem;text-decoration:none;text-align:left;cursor:pointer;width:100%;box-sizing:border-box}
+  .ms-item span{flex:1;min-width:0}.ms-item small{color:var(--muted);text-transform:capitalize}
+  .ms-item.on{border-color:var(--accent);background:color-mix(in srgb,var(--accent) 10%,var(--surface))}
+  .ms-item[hidden]{display:none}
+  .ms-meta{margin:14px 4px 0;font-size:.74rem;color:var(--muted);text-align:center}
+  body.sheet-open{overflow:hidden}
+  /* library: less before the recipes */
+  .title{margin:6px 0 12px!important}.title h1{font-size:26px!important}.title p{display:none}
+  .banner{padding:14px!important;margin-bottom:14px}.banner h2{font-size:18px!important;margin:0 0 2px}.banner p{display:none}
+  .linkbox{flex-direction:row!important;gap:8px;margin-top:8px}.linkbox input{flex:1;min-width:0}.linkbox .btn{white-space:nowrap;padding-inline:14px}
+  .section{margin-top:18px!important}.section h2{font-size:20px}
+  .shelves{display:flex!important;overflow-x:auto;gap:10px;margin:0 -16px;padding:2px 16px 8px;scrollbar-width:none}
+  .shelves .shelf{flex:0 0 auto;min-width:190px;max-width:230px}
+  .shelves .hintshelf{display:none}
+  .tools{margin:12px 0 10px}.tools .search{flex:1 1 100%;min-width:0}
+  .filters{flex-wrap:nowrap!important;overflow-x:auto;margin:0 -16px 10px!important;padding:2px 16px 6px;scrollbar-width:none}
+  .filters>*{flex:0 0 auto}
+  .filters select,.filters .chip{height:38px}
+  .meta{font-size:12px}
+  .card .ctags .tag:nth-child(n+3){display:none}
+  .card .by{font-size:10.5px}
+  .sharenudge{padding:14px!important}
+}
+
+@media (max-width:700px){
+  .side{flex-wrap:nowrap!important;min-height:0!important}
+  .side .logo{display:inline-block!important;flex:0 0 auto;width:auto!important;margin:0!important;line-height:1!important;text-align:left!important}
+  .title{display:none!important}
+  .banner>div:first-child{display:none}
+  .banner{padding:10px!important;margin-bottom:12px}
+  .linkbox{margin-top:0!important}
+  .sharenudge{grid-template-columns:1fr!important;gap:8px!important;padding:12px 14px!important;margin-bottom:14px!important}
+  .sharenudge p{display:none}.sharenudge h2{font-size:1.05rem!important;margin:0}
+  .sharenudge .row{gap:6px}.sharenudge .btn{padding:8px 14px}
+  .collsec.nocoll h2{display:none}.collsec.nocoll{justify-content:flex-end;margin:0 0 4px!important}
+  #heading{font-size:18px!important}
+}
+
+@media (max-width:700px){
+  .side{flex-direction:row!important;align-items:center!important;justify-content:space-between!important}
+  .shelves.none{display:none!important}
+}
 </style>
 
 <div class="app">
 <aside class="side" id="side">
   <a href="#" class="logo homelink" aria-label="Savor home">savor<span aria-hidden="true">✳</span></a>
+  <button class="phonebook" id="phoneBook" type="button" aria-haspopup="dialog" aria-label="Open menu, books and settings" hidden></button>
   <div class="sub">GOOD FOOD. KEPT CLOSE.</div>
   <nav class="nav tabs" aria-label="Sections">
     <a class="tab" href="#" data-tab="list"><span class="ico" aria-hidden="true">▦</span>My recipe library <b id="count"></b></a>
@@ -593,7 +671,7 @@ ol.method li::before{background:var(--accent);color:var(--accent-ink);font-famil
   <div id="sideBooks"></div>
   <button class="collection textbtn" type="button" id="sideNewColl">＋ New collection</button>
   <div class="profile"><span class="avatar" id="avatar" aria-hidden="true">✳</span><div><span id="profName">Our kitchen</span><br><small>Your family cookbook</small></div></div>
-  <div class="buildstamp" id="buildStamp">Version Nov 20, 03:34 UTC</div>
+  <div class="buildstamp" id="buildStamp">Version Nov 20, 03:47 UTC</div>
 </aside>
 <div class="mainwrap">
   <header class="top">
@@ -608,6 +686,31 @@ ol.method li::before{background:var(--accent);color:var(--accent-ink);font-famil
   </header>
   <main id="view"></main>
 </div>
+</div>
+<nav class="bottomnav" id="bottomNav" aria-label="Main">
+  <a href="#" data-bt="list"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3.5" y="3.5" width="7" height="7" rx="1.6"/><rect x="13.5" y="3.5" width="7" height="7" rx="1.6"/><rect x="3.5" y="13.5" width="7" height="7" rx="1.6"/><rect x="13.5" y="13.5" width="7" height="7" rx="1.6"/></svg><span>Recipes</span></a>
+  <a href="#favorites" data-bt="favorites"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 20.5s-7.5-4.6-7.5-10.2A4.3 4.3 0 0 1 12 7.6a4.3 4.3 0 0 1 7.5 2.7c0 5.6-7.5 10.2-7.5 10.2z"/></svg><span>Favorites</span></a>
+  <a href="#plan" data-bt="plan"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3.5" y="5" width="17" height="15.5" rx="2.2"/><path d="M8 3v4M16 3v4M3.5 10h17"/></svg><span>Plan</span></a>
+  <a href="#grocery" data-bt="grocery"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3.5 4.5h2.2l2 11h9.6l2-7.6H7"/><circle cx="9.5" cy="19.3" r="1.3"/><circle cx="16.5" cy="19.3" r="1.3"/></svg><span>Grocery</span><b class="bbadge" id="gb2" hidden></b></a>
+  <button type="button" data-bt="more" id="moreBtn" aria-haspopup="dialog"><svg viewBox="0 0 24 24" width="22" height="22" fill="currentColor" aria-hidden="true"><circle cx="5.5" cy="12" r="1.7"/><circle cx="12" cy="12" r="1.7"/><circle cx="18.5" cy="12" r="1.7"/></svg><span>More</span><b class="bbadge" id="ib2" hidden></b></button>
+</nav>
+<button class="fab" id="fab" type="button" aria-label="Save a recipe" hidden>＋</button>
+<div class="moresheet" id="moreSheet" hidden>
+  <div class="ms-back" data-close></div>
+  <div class="ms-panel" role="dialog" aria-modal="true" aria-label="Menu">
+    <div class="ms-grip" aria-hidden="true"></div>
+    <div class="ms-who"><span class="avatar" id="msAvatar" aria-hidden="true">✳</span><div><b id="msName">Your kitchen</b><small id="msBook"></small></div><button class="ms-x" type="button" data-close aria-label="Close">×</button></div>
+    <div id="msBooks"></div>
+    <div class="ms-list">
+      <a class="ms-item" href="#tocook" data-close>◷ <span>Want to cook</span></a>
+      <a class="ms-item" href="#inbox" data-close>✉ <span>Inbox</span><b class="bbadge" id="ib3" hidden></b></a>
+      <button class="ms-item" type="button" data-proxy="#shareBtn">⇪ <span>Share cookbook</span></button>
+      <button class="ms-item" type="button" data-proxy="#svAcctTop">☺ <span>Account &amp; books</span></button>
+      <button class="ms-item" type="button" data-proxy="#themeBtn" id="msTheme">☾ <span>Dark mode</span></button>
+      <button class="ms-item" type="button" data-proxy="#refreshBtn">↻ <span>Refresh</span></button>
+    </div>
+    <p class="ms-meta" id="msMeta"></p>
+  </div>
 </div>
 
 <script>
@@ -1316,9 +1419,15 @@ function header(){
   const tab = r==='plan' ? 'plan' : r==='grocery' ? 'grocery' : r==='inbox' ? 'inbox' : (r==='books'||r==='start') ? '' : r==='list' ? (rt.mode || (state.book ? '' : 'list')) : '';
   document.querySelectorAll('.tab').forEach(t => { if(t.dataset.tab===tab) t.setAttribute('aria-current','page'); else t.removeAttribute('aria-current'); });
   $('#addBtn').hidden = !state.canWrite || r==='edit' || r==='books' || r==='start' || !state.bookId;
+  /* phone layout: bottom tabs, floating add button, and the book chip */
+  document.body.dataset.route = r;
+  document.querySelectorAll('[data-bt]').forEach(t => { const on = t.dataset.bt === tab || (t.dataset.bt === 'more' && (tab === 'tocook' || tab === 'inbox')); if(on) t.setAttribute('aria-current','page'); else t.removeAttribute('aria-current'); });
+  $('#fab').hidden = !(state.canWrite && state.bookId && r === 'list');   /* library, favorites, want to cook, a collection */
+  const pb = $('#phoneBook'); pb.hidden = !state.bookId; pb.textContent = (state.bookName || 'My recipes') + ' ▾';
   $('#count').textContent = state.loaded && !state.error ? state.recipes.length : '';
   const left = state.grocery.filter(g=>!g.checked).length; const b = $('#gbadge'); b.hidden = !left; b.textContent = left;
   const ib = $('#ibadge'); ib.hidden = !state.inbox.length; ib.textContent = state.inbox.length;
+  { const g2 = $('#gb2'); g2.hidden = !left; g2.textContent = left; for(const id of ['#ib2','#ib3']){ const e = $(id); e.hidden = !state.inbox.length; e.textContent = state.inbox.length; } }
   const crumbs = { list: 'Recipe library', favorites: 'Favorites', tocook: 'Want to cook', plan: 'Meal plan', grocery: 'Grocery list', inbox: 'Inbox', detail: 'Recipe', edit: 'Save a recipe', cook: 'Cooking' };
   const where = r==='list' ? (state.book ? state.book : crumbs[rt.mode || 'list']) : (crumbs[r] || '');
   $('#crumb').innerHTML = esc(state.bookName || 'Our kitchen') + (where ? ' &nbsp;/&nbsp; ' + esc(where) : '');
@@ -1335,6 +1444,29 @@ function header(){
   const tb = $('#themeBtn'); tb.textContent = dark ? '☀ Light mode' : '☾ Dark mode'; tb.setAttribute('aria-pressed', String(dark));
 }
 (() => { const b = document.getElementById('buildStamp'); if(b && /^__/.test(b.textContent)) b.hidden = true; })();
+/* the More sheet (phones): books, sharing, account, theme and refresh in one place */
+function closeMore(){ const sh = $('#moreSheet'); sh.hidden = true; document.body.classList.remove('sheet-open'); }
+function openMore(){
+  const sh = $('#moreSheet'), W = window.RecipeBoxWeb;
+  const me = (window.RecipeBoxPeople && window.RecipeBoxPeople.me().name) || '';
+  $('#msAvatar').textContent = me ? me.charAt(0).toUpperCase() : '✳'; $('#msName').textContent = me ? me + '’s kitchen' : 'Your kitchen'; $('#msBook').textContent = state.bookName ? 'Open: ' + state.bookName : '';
+  const bk = W && W.books ? W.books() : null;
+  $('#msBooks').innerHTML = bk && bk.list.length > 1 ? '<div class="ms-h">Your recipe books</div><div class="ms-list">' + bk.list.map(x => `<button class="ms-item${x.id === bk.active ? ' on' : ''}" type="button" data-openbook="${esc(x.id)}"><span>${x.id === bk.active ? '✓ ' : ''}${esc(x.name)}</span><small>${esc(x.role)}</small></button>`).join('') + '</div>' : '';
+  const dark = document.documentElement.dataset.theme === 'dark' || (!document.documentElement.dataset.theme && matchMedia('(prefers-color-scheme: dark)').matches);
+  $('#msTheme').innerHTML = (dark ? '☀ <span>Light mode</span>' : '☾ <span>Dark mode</span>');
+  $('#shareBtn').hidden ? sh.querySelector('[data-proxy="#shareBtn"]').setAttribute('hidden', '') : sh.querySelector('[data-proxy="#shareBtn"]').removeAttribute('hidden');
+  const acct = sh.querySelector('[data-proxy="#svAcctTop"]'); if(acct) acct.hidden = !document.getElementById('svAcctTop');
+  const imp = (document.getElementById('svBadge') || {}).textContent || '', ver = (document.getElementById('buildStamp') || {}).textContent || '';
+  $('#msMeta').textContent = [imp, /^Version/.test(ver) ? ver : ''].filter(Boolean).join('  ·  ');
+  sh.hidden = false; document.body.classList.add('sheet-open');
+}
+document.addEventListener('click', e => { const t = e.target.closest && e.target.closest('#moreBtn, #phoneBook, #fab, [data-close], [data-proxy], [data-openbook]'); if(!t) return;
+  if(t.id === 'moreBtn' || t.id === 'phoneBook'){ openMore(); return; }
+  if(t.id === 'fab'){ $('#addBtn').click(); return; }
+  if(t.dataset.proxy){ const target = $(t.dataset.proxy); closeMore(); if(target) setTimeout(() => target.click(), 60); return; }
+  if(t.dataset.openbook){ closeMore(); if(window.RecipeBoxWeb && window.RecipeBoxWeb.openBook) window.RecipeBoxWeb.openBook(t.dataset.openbook); return; }
+  closeMore(); });
+document.addEventListener('keydown', e => { if(e.key === 'Escape' && !$('#moreSheet').hidden) closeMore(); });
 function render(){
   header();
   const r = route();
@@ -1403,8 +1535,8 @@ function renderList(){
     ${showHero ? `<div class="title"><div><h1>Your cravings, collected.</h1><p>All the recipes you love. One delicious little home.</p></div><span class="note">A little inspiration for your next meal ↘</span></div>
     ${state.canWrite ? quick : ''}
     ${showHero ? shareNudge() : ''}
-    <div class="section"><h2>Your collections</h2>${state.canWrite ? '<button class="textbtn" type="button" id="mkColl">＋ Create collection</button>' : ''}</div>
-    <div class="shelves">${books.length ? books.map((c,i) => `<button class="shelf" type="button" data-shelf="${esc(c)}"><span class="emoji" aria-hidden="true">${['🍋','🌿','🥐','🍅','🫒','🍰'][i%6]}</span><div><strong>${esc(c)}</strong><small>${(n => n + (n===1 ? ' recipe' : ' recipes'))(all.filter(r => (r.cookbooks||[]).includes(c)).length)} &nbsp; ↗</small></div></button>`).join('')
+    <div class="section collsec${books.length ? '' : ' nocoll'}"><h2>Your collections</h2>${state.canWrite ? '<button class="textbtn" type="button" id="mkColl">＋ Create collection</button>' : ''}</div>
+    <div class="shelves${books.length ? '' : ' none'}">${books.length ? books.map((c,i) => `<button class="shelf" type="button" data-shelf="${esc(c)}"><span class="emoji" aria-hidden="true">${['🍋','🌿','🥐','🍅','🫒','🍰'][i%6]}</span><div><strong>${esc(c)}</strong><small>${(n => n + (n===1 ? ' recipe' : ' recipes'))(all.filter(r => (r.cookbooks||[]).includes(c)).length)} &nbsp; ↗</small></div></button>`).join('')
       : `<div class="shelf hintshelf"><span class="emoji" aria-hidden="true">🍋</span><div><strong>No collections yet</strong><small>Group recipes into shelves like “Weeknight favorites” or “For the weekend”.</small></div></div>`}</div>` : ''}
     <div class="section" ${showHero ? 'style="margin-top:34px"' : ''}><h2 id="heading">${esc(heading)}</h2><button class="textbtn" type="button" id="resetF">${state.book || mode ? 'Show all recipes' : 'Reset filters'}</button></div>
     ${all.length ? `<div class="tools"><input class="search" id="q2" type="search" placeholder="⌕  Search recipes, ingredients, creators…" aria-label="Search recipes" value="${esc(state.q||'')}">
