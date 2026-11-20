@@ -12,7 +12,7 @@
 <link rel="apple-touch-icon" sizes="180x180" href="../food-icon-180.png">
 <link rel="icon" href="../food-icon.svg" type="image/svg+xml">
 <script src="config.js?v=2"></script>
-<script src="shim.js?v=14"></script>
+<script src="shim.js?v=15"></script>
 <style>[hidden]{display:none!important}:root{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html,body{margin:0}body{font-size:16px}img{max-width:100%}</style>
 </head><body>
 
@@ -473,6 +473,15 @@ header.top{position:static;display:flex;align-items:center;gap:12px;flex-wrap:wr
 .tools select{padding:10px 12px}
 .filters{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px}
 .filters select{border:1px solid var(--line);border-radius:30px;padding:8px 26px 8px 14px;color:var(--ink);background:var(--surface);max-width:180px;font:inherit;font-size:.9rem}
+.whopick{position:relative}
+.whopick summary{list-style:none;cursor:pointer;border:1px solid var(--line);border-radius:30px;padding:8px 14px;background:var(--surface);color:var(--ink);font-size:.9rem;max-width:240px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.whopick summary::-webkit-details-marker{display:none}
+.whopick summary::after{content:" ▾";color:var(--muted)}
+.whopick summary.on{background:var(--active);color:var(--accent);border-color:var(--accent)}
+.whomenu{position:absolute;z-index:30;top:calc(100% + 6px);left:0;min-width:220px;max-width:min(86vw,320px);background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:6px;box-shadow:0 10px 30px rgba(0,0,0,.35)}
+.whomenu label{display:flex;gap:10px;align-items:center;padding:11px 12px;border-radius:10px;cursor:pointer;font-size:1rem}
+.whomenu label:hover{background:var(--sunk)}
+.whomenu input{width:18px;height:18px;accent-color:var(--accent)}
 .filters .chip{border-radius:30px;padding:8px 14px;background:var(--surface);color:var(--ink);font-size:.9rem}
 .filters .chip.on,.filters .chip[aria-pressed="true"]{background:var(--active);color:var(--accent);border-color:var(--accent)}
 .meta{display:flex;justify-content:space-between;align-items:center;color:var(--muted);font-size:12px;margin:14px 0}
@@ -691,7 +700,7 @@ ol.method li::before{background:var(--accent);color:var(--accent-ink);font-famil
   <div id="sideBooks"></div>
   <button class="collection textbtn" type="button" id="sideNewColl">＋ New collection</button>
   <div class="profile"><span class="avatar" id="avatar" aria-hidden="true">✳</span><div><span id="profName">Our kitchen</span><br><small>Your family cookbook</small></div></div>
-  <div class="buildstamp" id="buildStamp">Version Nov 20, 04:48 UTC</div>
+  <div class="buildstamp" id="buildStamp">Version Nov 20, 13:42 UTC</div>
 </aside>
 <div class="mainwrap">
   <header class="top">
@@ -1891,7 +1900,7 @@ function filterState(all){
   return all.filter(r => FACETS.every(g => !state.facets[g] || (state.facets[g] === '__none__' ? !canonList(r.tags).some(t => groupOf(t) === g && t !== 'Misc') : canonList(r.tags).includes(state.facets[g]))) && (!state.tag || canonList(r.tags).includes(state.tag)) && (!state.book || (r.cookbooks||[]).includes(state.book)) && (!state.mine || r.addedBy===state.me) && (!week || week.has(r.id)) &&
     (!x.protein || (x.protein === 'forward' ? proteinInfo(r).tier === 'forward' : proteinInfo(r).g >= Number(x.protein))) &&
     (!x.time || (x.time==='u30' ? mins(r) && mins(r) < 30 : x.time==='30-45' ? mins(r) >= 30 && mins(r) <= 45 : mins(r) > 45)) &&
-    (!x.status || (x.status==='cooked' ? r.cooked : !r.cooked)) && (!x.who || (x.who==='me' ? r.addedBy===state.me : r.addedBy!==state.me)) &&
+    (!x.status || (x.status==='cooked' ? r.cooked : !r.cooked)) && (!(x.who && x.who.length) || x.who.includes(r.addedBy)) &&
     (!q || [r.title, r.author, r.notes, r.platform, ...(r.tags||[]), ...(r.cookbooks||[]), ...(r.ingredients||[])].join(' ').toLowerCase().includes(q)));
 }
 function filterSelectsHTML(all){
@@ -1901,9 +1910,25 @@ function filterSelectsHTML(all){
   const xs = (k, label, opts) => `<select data-extra="${k}" aria-label="${label}"><option value="">${label}</option>${opts.map(([v,l]) => `<option value="${v}"${state.extra[k]===v?' selected':''}>${l}</option>`).join('')}</select>`;
   return `<div class="filters">${sel('Course','Course')}${sel('Style','Style')}${sel('Diet','Diet')}${xs('protein','Protein',[['20','20 g+ protein'],['25','25 g+ (High)'],['30','30 g+ protein'],['40','40 g+ protein'],['forward','Protein-forward']])}${xs('time','Time',[['u30','Under 30 min'],['30-45','30–45 min'],['o45','Over 45 min']])}
       <button class="chip${state.weekOnly?' on':''}" type="button" data-k="week" aria-pressed="${!!state.weekOnly}">This week’s meals (${thisWeekIds().size})</button></div>
-    <div class="filters" ${state.moreF ? '' : 'hidden'}>${sel('Method','Method')}${sel('Main ingredient','Main ingredient')}${xs('status','Cooking status',[['tocook','Want to cook'],['cooked','Already cooked']])}${state.me ? xs('who','Added by',[['me','Added by me'],['others','Added by family']]) : ''}</div>`;
+    <div class="filters" ${state.moreF ? '' : 'hidden'}>${sel('Method','Method')}${sel('Main ingredient','Main ingredient')}${xs('status','Cooking status',[['tocook','Want to cook'],['cooked','Already cooked']])}${whoPickHTML(all)}</div>`;
+}
+/* "Added by": pick one or more people; nothing picked (or Everyone) means everyone */
+function whoPickHTML(all){
+  const ids = [...new Set([...all.map(r => r.addedBy), ...(state.members || [])].filter(Boolean))];
+  if(!state.me || ids.length < 2) return '';
+  const name = id => id === state.me ? 'Me' : (state.names[id] || 'Family member');
+  ids.sort((a, b) => (a === state.me ? -1 : b === state.me ? 1 : name(a).localeCompare(name(b))));
+  const cur = (state.extra && state.extra.who) || [];
+  const label = cur.length ? 'Added by: ' + cur.map(name).join(', ') : 'Added by: Everyone';
+  return `<details class="whopick"${state.whoOpen ? ' open' : ''}><summary class="${cur.length ? 'on' : ''}">${esc(label)}</summary><div class="whomenu">
+    <label><input type="checkbox" data-who="__all__"${cur.length ? '' : ' checked'}> Everyone</label>
+    ${ids.map(id => `<label><input type="checkbox" data-who="${esc(id)}"${cur.includes(id) ? ' checked' : ''}> ${esc(name(id))}</label>`).join('')}</div></details>`;
 }
 function bindFilterSelects(rerender){
+  view.querySelectorAll('.whopick').forEach(d => { d.addEventListener('toggle', () => { state.whoOpen = d.open; });
+    d.querySelectorAll('[data-who]').forEach(c => c.onchange = () => { const v = c.dataset.who; let cur = (state.extra.who || []).slice();
+      if(v === '__all__') cur = []; else cur = c.checked ? [...cur, v] : cur.filter(x => x !== v);
+      if(cur.length) state.extra.who = cur; else delete state.extra.who; state.whoOpen = true; rerender(); }); });
   view.querySelectorAll('[data-facet]').forEach(x => x.onchange = () => { state.facets[x.dataset.facet] = x.value; rerender(); });
   view.querySelectorAll('[data-extra]').forEach(x => x.onchange = () => { state.extra[x.dataset.extra] = x.value; rerender(); });
   view.querySelectorAll('[data-k="week"]').forEach(x => x.onclick = () => { state.weekOnly = !state.weekOnly; rerender(); });
