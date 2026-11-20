@@ -12,7 +12,7 @@
 <link rel="apple-touch-icon" sizes="180x180" href="../food-icon-180.png">
 <link rel="icon" href="../food-icon.svg" type="image/svg+xml">
 <script src="config.js?v=2"></script>
-<script src="shim.js?v=15"></script>
+<script src="shim.js?v=16"></script>
 <style>[hidden]{display:none!important}:root{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html,body{margin:0}body{font-size:16px}img{max-width:100%}</style>
 </head><body>
 
@@ -634,9 +634,13 @@ ol.method li::before{background:var(--accent);color:var(--accent-ink);font-famil
   .shelves .shelf{flex:0 0 auto;min-width:190px;max-width:230px}
   .shelves .hintshelf{display:none}
   .tools{margin:12px 0 10px}.tools .search{flex:1 1 100%;min-width:0}
-  .filters{flex-wrap:nowrap!important;overflow-x:auto;margin:0 -16px 10px!important;padding:2px 16px 6px;scrollbar-width:none}
-  .filters>*{flex:0 0 auto}
-  .filters select,.filters .chip{height:38px}
+  .filters{flex-wrap:wrap!important;overflow:visible;margin:0 0 10px!important;padding:2px 0 4px}
+  .filters>*{flex:1 1 calc(50% - 8px);min-width:0}
+  .filters select{max-width:none;width:100%}
+  .filters select,.filters .chip,.whopick summary{height:42px;display:flex;align-items:center}
+  .filters .whopick{flex:1 1 100%}
+  .whopick summary{max-width:none;width:100%;justify-content:space-between}
+  .whomenu{position:static;margin-top:6px;max-width:none;box-shadow:none}
   .meta{font-size:12px}
   .card .ctags .tag:nth-child(n+3){display:none}
   .card .by{font-size:10.5px}
@@ -700,7 +704,7 @@ ol.method li::before{background:var(--accent);color:var(--accent-ink);font-famil
   <div id="sideBooks"></div>
   <button class="collection textbtn" type="button" id="sideNewColl">＋ New collection</button>
   <div class="profile"><span class="avatar" id="avatar" aria-hidden="true">✳</span><div><span id="profName">Our kitchen</span><br><small>Your family cookbook</small></div></div>
-  <div class="buildstamp" id="buildStamp">Version Nov 20, 13:42 UTC</div>
+  <div class="buildstamp" id="buildStamp">Version Nov 20, 13:55 UTC</div>
 </aside>
 <div class="mainwrap">
   <header class="top">
