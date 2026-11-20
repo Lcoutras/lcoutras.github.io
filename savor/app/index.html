@@ -12,7 +12,7 @@
 <link rel="apple-touch-icon" sizes="180x180" href="../food-icon-180.png">
 <link rel="icon" href="../food-icon.svg" type="image/svg+xml">
 <script src="config.js?v=2"></script>
-<script src="shim.js?v=16"></script>
+<script src="shim.js?v=17"></script>
 <style>[hidden]{display:none!important}:root{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html,body{margin:0}body{font-size:16px}img{max-width:100%}</style>
 </head><body>
 
@@ -682,7 +682,7 @@ ol.method li::before{background:var(--accent);color:var(--accent-ink);font-famil
 @media (max-width:700px){
   .regions{grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
   .region{aspect-ratio:1/1.02;border-radius:18px}.region .rname{font-size:1.2rem;padding:0 12px}.region .rcount{padding:3px 12px 11px}
-  .moodchips{flex-wrap:nowrap;overflow-x:auto;margin:0 -16px 14px;padding:0 16px 4px;scrollbar-width:none}.moodchips .chip{flex:0 0 auto}
+  .moodchips{flex-wrap:wrap;margin:0 0 14px}.moodchips .chip{flex:1 1 auto;justify-content:center;text-align:center}
   .mood h1{font-size:1.75rem}
 }
 </style>
@@ -704,7 +704,7 @@ ol.method li::before{background:var(--accent);color:var(--accent-ink);font-famil
   <div id="sideBooks"></div>
   <button class="collection textbtn" type="button" id="sideNewColl">＋ New collection</button>
   <div class="profile"><span class="avatar" id="avatar" aria-hidden="true">✳</span><div><span id="profName">Our kitchen</span><br><small>Your family cookbook</small></div></div>
-  <div class="buildstamp" id="buildStamp">Version Nov 20, 13:55 UTC</div>
+  <div class="buildstamp" id="buildStamp">Version Nov 20, 14:14 UTC</div>
 </aside>
 <div class="mainwrap">
   <header class="top">
@@ -1594,13 +1594,14 @@ function renderHome(all, books, quick){
   view.innerHTML = `
     <div class="mood"><h1>What are you in the mood for?</h1><p>${n > 1 ? 'Pick a cuisine to see your recipes.' : 'Your recipes, ready when you are.'}</p></div>
     <div class="homesearch"><input id="homeQ" class="search" type="search" placeholder="⌕  Search all ${all.length} recipe${all.length === 1 ? '' : 's'}…" aria-label="Search recipes" autocomplete="off"></div>
-    <div class="moodchips">${picks.map(([l, v]) => `<button class="chip" type="button" data-pick="${v}">${l}</button>`).join('')}</div>
+    <div class="moodchips"><button class="chip" type="button" id="allFilters">☷ All filters</button>${picks.map(([l, v]) => `<button class="chip" type="button" data-pick="${v}">${l}</button>`).join('')}</div>
     <div class="regions">${tiles.map(tile).join('')}</div>
     <div class="homeall"><button class="textbtn" type="button" id="seeAll">See all ${all.length} recipe${all.length === 1 ? '' : 's'} →</button></div>
     ${state.canWrite ? quick : ''}
     ${shareNudge()}
     ${shelves}`;
   view.querySelectorAll('[data-region]').forEach(b => b.onclick = () => { state.facets = { Region: b.dataset.region }; renderList(); window.scrollTo(0, 0); });
+  $('#allFilters').onclick = () => { state.showAll = true; state.moreF = true; renderList(); window.scrollTo(0, 0); };
   $('#seeAll').onclick = () => { state.showAll = true; renderList(); window.scrollTo(0, 0); };
   view.querySelectorAll('[data-pick]').forEach(b => b.onclick = () => { const [k, v] = b.dataset.pick.split(':'); if(k === 'hash'){ location.hash = v; return; } state.extra = { [k]: v }; renderList(); window.scrollTo(0, 0); });
   const hq = $('#homeQ'); hq.oninput = () => { const v = hq.value.trim(); if(!v) return; state.q = v.toLowerCase(); state._focusSearch = true; renderList(); };
