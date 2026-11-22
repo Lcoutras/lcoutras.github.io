@@ -12,7 +12,7 @@
 <link rel="apple-touch-icon" sizes="180x180" href="../food-icon-180.png">
 <link rel="icon" href="../food-icon.svg" type="image/svg+xml">
 <script src="config.js?v=2"></script>
-<script src="shim.js?v=18"></script>
+<script src="shim.js?v=19"></script>
 <style>[hidden]{display:none!important}:root{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html,body{margin:0}body{font-size:16px}img{max-width:100%}</style>
 </head><body>
 
@@ -704,7 +704,7 @@ ol.method li::before{background:var(--accent);color:var(--accent-ink);font-famil
   <div id="sideBooks"></div>
   <button class="collection textbtn" type="button" id="sideNewColl">＋ New collection</button>
   <div class="profile"><span class="avatar" id="avatar" aria-hidden="true">✳</span><div><span id="profName">Our kitchen</span><br><small>Your family cookbook</small></div></div>
-  <div class="buildstamp" id="buildStamp">Version Nov 22, 04:01 UTC</div>
+  <div class="buildstamp" id="buildStamp">Version Nov 22, 15:24 UTC</div>
 </aside>
 <div class="mainwrap">
   <header class="top">
@@ -865,7 +865,7 @@ function convTemps(text, mode){
 /* aisle guess for items added without Claude */
 const LABEL_GROUPS = {
   'Course': ['Breakfast','Brunch','Lunch','Dinner','Appetizer','Side dish','Soup','Salad','Sandwich','Dessert','Baking','Snack','Drink','Sauce'],
-  'Region': ['American','Italian American','Southern','Cajun & Creole','Tex-Mex','Mexican','Latin American','Caribbean','Italian','French','Spanish','Greek','Mediterranean','Middle Eastern','North African','Indian','Thai','Chinese','Japanese','Korean','Vietnamese','Filipino','Misc'],
+  'Region': ['American','American Italian','Southern','Cajun & Creole','Tex-Mex','Mexican','Latin American','Caribbean','Italian','French','Spanish','Greek','Mediterranean','Middle Eastern','North African','Indian','Thai','Chinese','Japanese','Korean','Vietnamese','Filipino','Misc'],
   'Style': ['Comfort food','Healthy','Light','Hearty','Spicy','Creamy','Cheesy','Crispy','Fresh','Smoky','Sweet & savory','Indulgent','Budget friendly','Date night'],
   'Main ingredient': ['Chicken','Beef','Pork','Seafood','Pasta','Rice','Beans & lentils','Eggs','Vegetables'],
   'Method': ['Air fryer','Slow cooker','Instant Pot','Grill','One pan','Sheet pan','No cook','Baked'],
@@ -879,7 +879,7 @@ function groupOf(l){ const k = String(l||'').toLowerCase();
   for(const [name, g] of Object.entries(custom)) if(name.toLowerCase()===k && GROUP_ORDER.includes(g)) return g;
   return 'Other'; }
 const TAG_RULE = `"course": the type of dish, one of: ${LABEL_GROUPS.Course.join(', ')},
- "region": the culinary tradition the DISH itself comes from historically, one of: ${LABEL_GROUPS.Region.filter(x => x!=='Misc').join(', ')} (a different short region only if none fit, e.g. "Peruvian"). Use "Italian American" for red-sauce Italian-American dishes that came from Italian immigrants in the US (chicken parmesan, spaghetti and meatballs, baked ziti, fettuccine alfredo, garlic bread, Sunday gravy), and "Italian" for dishes from Italy itself. Judge only by the dish's history and roots. Ignore who made the video, where they live or where it was filmed: carbonara is Italian even when a Texan films it in Dallas; birria is Mexican; a smash burger is American. For a fusion dish, pick the tradition it mainly comes from.,
+ "region": the culinary tradition the DISH itself comes from historically, one of: ${LABEL_GROUPS.Region.filter(x => x!=='Misc').join(', ')} (a different short region only if none fit, e.g. "Peruvian"). Use "American Italian" for red-sauce American Italian dishes that came from Italian immigrants in the US (chicken parmesan, spaghetti and meatballs, baked ziti, fettuccine alfredo, garlic bread, Sunday gravy), and "Italian" for dishes from Italy itself. Judge only by the dish's history and roots. Ignore who made the video, where they live or where it was filmed: carbonara is Italian even when a Texan films it in Dallas; birria is Mexican; a smash burger is American. For a fusion dish, pick the tradition it mainly comes from.,
  "style": [1-2 words for its character, from: ${LABEL_GROUPS.Style.join(', ')} (a new one only if none fit)],
  "tags": [any others that clearly fit, from: ${[...LABEL_GROUPS['Main ingredient'], ...LABEL_GROUPS.Method, ...LABEL_GROUPS.Diet, ...LABEL_GROUPS.Occasion].join(', ')}]`;
 /* Combine Claude's course / region / style with its other tags, remembering which group any new name belongs to */
