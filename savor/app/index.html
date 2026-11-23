@@ -12,7 +12,7 @@
 <link rel="apple-touch-icon" sizes="180x180" href="../food-icon-180.png">
 <link rel="icon" href="../food-icon.svg" type="image/svg+xml">
 <script src="config.js?v=2"></script>
-<script src="shim.js?v=21"></script>
+<script src="shim.js?v=22"></script>
 <style>[hidden]{display:none!important}:root{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html,body{margin:0}body{font-size:16px}img{max-width:100%}</style>
 </head><body>
 
@@ -706,7 +706,7 @@ ol.method li::before{background:var(--accent);color:var(--accent-ink);font-famil
   <div id="sideBooks"></div>
   <button class="collection textbtn" type="button" id="sideNewColl">＋ New collection</button>
   <div class="profile"><span class="avatar" id="avatar" aria-hidden="true">✳</span><div><span id="profName">Our kitchen</span><br><small>Your family cookbook</small></div></div>
-  <div class="buildstamp" id="buildStamp">Version Nov 23, 22:12 UTC</div>
+  <div class="buildstamp" id="buildStamp">Version Nov 23, 22:16 UTC</div>
 </aside>
 <div class="mainwrap">
   <header class="top">
@@ -1608,10 +1608,13 @@ function courseRow(all){
 }
 function renderHome(all, books, quick){
   const tiles = regionTiles(all), n = tiles.length;
-  const tile = (t, i) => { const none = t.name === '__none__', c = t.list.length;
-    return `<button class="region" type="button" data-region="${esc(t.name)}" style="--g:${MOOD_COLORS[i % MOOD_COLORS.length]}" aria-label="${esc(none ? 'Misc' : t.name)}, ${c} recipe${c === 1 ? '' : 's'}">
+  const dz = inCourse(all, 'Dessert');
+  if(dz.length){ const dt = { name: '__course:Dessert', label: '🍰 Desserts', list: dz, photo: dz.slice().sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0)).find(r => r.photoId) };
+    const at = tiles.findIndex(t => t.name === '__none__'); let pos = tiles.findIndex(t => t.list.length < dz.length && t.name !== '__none__'); if(pos < 0) pos = at < 0 ? tiles.length : at; tiles.splice(pos, 0, dt); }
+  const tile = (t, i) => { const none = t.name === '__none__', c = t.list.length, nm = t.label || (none ? 'Misc' : t.name);
+    return `<button class="region" type="button" data-region="${esc(t.name)}" style="--g:${MOOD_COLORS[i % MOOD_COLORS.length]}" aria-label="${esc(nm)}, ${c} recipe${c === 1 ? '' : 's'}">
       ${t.photo ? `<img class="rimg" src="${esc(imgSrc(t.photo))}" alt="" loading="lazy" draggable="false" onerror="this.style.display='none'">` : ''}<span class="rshade"></span>
-      <span class="rname">${esc(none ? 'Misc' : t.name)}</span><span class="rcount">${c} recipe${c === 1 ? '' : 's'}</span></button>`; };
+      <span class="rname">${esc(nm)}</span><span class="rcount">${c} recipe${c === 1 ? '' : 's'}${t.label ? ' · by cuisine' : ''}</span></button>`; };
   const picks = [['⚡ Under 30 min', 'time:u30'], ['💪 High protein', 'protein:25'], ['♡ Favorites', 'hash:favorites'], ['◷ Want to cook', 'hash:tocook']];
   const shelves = books.length ? `<div class="section"><h2>Your collections</h2>${state.canWrite ? '<button class="textbtn" type="button" id="mkColl">＋ Create collection</button>' : ''}</div>
     <div class="shelves">${books.map((c, i) => `<button class="shelf" type="button" data-shelf="${esc(c)}"><span class="emoji" aria-hidden="true">${['🍋','🌿','🥐','🍅','🫒','🍰'][i % 6]}</span><div><strong>${esc(c)}</strong><small>${(k => k + (k === 1 ? ' recipe' : ' recipes'))(all.filter(r => (r.cookbooks || []).includes(c)).length)}</small></div></button>`).join('')}</div>`
@@ -1620,15 +1623,13 @@ function renderHome(all, books, quick){
     <div class="mood"><h1>What are you in the mood for?</h1><p>${n > 1 ? 'Pick a cuisine to see your recipes.' : 'Your recipes, ready when you are.'}</p></div>
     <div class="homesearch"><input id="homeQ" class="search" type="search" placeholder="⌕  Search all ${all.length} recipe${all.length === 1 ? '' : 's'}…" aria-label="Search recipes" autocomplete="off"></div>
     <div class="moodchips"><button class="chip" type="button" id="allFilters">☷ All filters</button>${picks.map(([l, v]) => `<button class="chip" type="button" data-pick="${v}">${l}</button>`).join('')}</div>
-    ${(() => { const d = inCourse(all, 'Dessert'); if(!d.length) return ''; const ph = d.slice().sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0)).find(r => r.photoId);
-      return `<button class="folder" type="button" data-course="Dessert" aria-label="Desserts, ${d.length} recipes, by cuisine">${ph ? `<img class="rimg" src="${esc(imgSrc(ph))}" alt="" loading="lazy" draggable="false" onerror="this.style.display='none'">` : ''}<span class="rshade"></span><span class="rname">🍰 Desserts</span><span class="rcount">${d.length} recipe${d.length === 1 ? '' : 's'} · by cuisine →</span></button>`; })()}
     ${courseRow(all)}
     <div class="regions">${tiles.map(tile).join('')}</div>
     <div class="homeall"><button class="textbtn" type="button" id="seeAll">See all ${all.length} recipe${all.length === 1 ? '' : 's'} →</button></div>
     ${state.canWrite ? quick : ''}
     ${shareNudge()}
     ${shelves}`;
-  view.querySelectorAll('[data-region]').forEach(b => b.onclick = () => { state.facets = { Region: b.dataset.region }; renderList(); window.scrollTo(0, 0); });
+  view.querySelectorAll('[data-region]').forEach(b => b.onclick = () => { const rg = b.dataset.region; if(rg.startsWith('__course:')){ state.folder = rg.slice(9); state.facets = {}; } else state.facets = { Region: rg }; renderList(); window.scrollTo(0, 0); });
   view.querySelectorAll('[data-course]').forEach(b => b.onclick = () => { state.folder = b.dataset.course; state.facets = {}; renderList(); window.scrollTo(0, 0); });
   $('#allFilters').onclick = () => { state.showAll = true; state.moreF = true; renderList(); window.scrollTo(0, 0); };
   $('#seeAll').onclick = () => { state.showAll = true; renderList(); window.scrollTo(0, 0); };
