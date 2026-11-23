@@ -12,7 +12,7 @@
 <link rel="apple-touch-icon" sizes="180x180" href="../food-icon-180.png">
 <link rel="icon" href="../food-icon.svg" type="image/svg+xml">
 <script src="config.js?v=2"></script>
-<script src="shim.js?v=19"></script>
+<script src="shim.js?v=20"></script>
 <style>[hidden]{display:none!important}:root{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html,body{margin:0}body{font-size:16px}img{max-width:100%}</style>
 </head><body>
 
@@ -677,6 +677,7 @@ ol.method li::before{background:var(--accent);color:var(--accent-ink);font-famil
 .region .rshade{position:absolute;inset:0;background:linear-gradient(180deg,rgba(0,0,0,0) 30%,rgba(0,0,0,.74))}
 .region .rname{position:relative;font-family:'Playfair Display',Georgia,serif;font-weight:800;font-size:1.45rem;line-height:1.1;padding:0 14px;text-shadow:0 1px 8px rgba(0,0,0,.55)}
 .region .rcount{position:relative;padding:3px 14px 13px;font-size:.8rem;opacity:.95;text-shadow:0 1px 6px rgba(0,0,0,.5)}
+.coursebar{margin:2px 0 18px}.coursebar .lbl{display:block;font-family:var(--mono);font-size:.7rem;text-transform:uppercase;letter-spacing:.07em;color:var(--muted);margin:0 0 8px}.coursebar .moodchips{margin:0}.coursebar .chip.hot{border-color:var(--accent);color:var(--accent)}
 .homeall{text-align:center;margin:14px 0 22px}
 .backhome{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--line);background:var(--surface);color:var(--ink);border-radius:999px;padding:8px 14px;font:inherit;font-size:.9rem;font-weight:600;cursor:pointer;margin:0 0 12px}
 @media (max-width:700px){
@@ -704,7 +705,7 @@ ol.method li::before{background:var(--accent);color:var(--accent-ink);font-famil
   <div id="sideBooks"></div>
   <button class="collection textbtn" type="button" id="sideNewColl">＋ New collection</button>
   <div class="profile"><span class="avatar" id="avatar" aria-hidden="true">✳</span><div><span id="profName">Our kitchen</span><br><small>Your family cookbook</small></div></div>
-  <div class="buildstamp" id="buildStamp">Version Nov 22, 15:24 UTC</div>
+  <div class="buildstamp" id="buildStamp">Version Nov 23, 22:07 UTC</div>
 </aside>
 <div class="mainwrap">
   <header class="top">
@@ -1581,6 +1582,11 @@ function bindQuickAndShelves(){
   const mk = $('#mkColl'); if(mk) mk.onclick = () => newCollection();
   view.querySelectorAll('[data-shelf]').forEach(x => x.onclick = () => { state.book = x.dataset.shelf; render(); window.scrollTo(0,0); });
 }
+function courseRow(all){
+  const cnt = new Map(); for(const r of all) for(const t of canonList(r.tags)) if(groupOf(t) === 'Course') cnt.set(t, (cnt.get(t) || 0) + 1);
+  const cs = LABEL_GROUPS.Course.filter(c => cnt.has(c)).sort((a, b) => (b === 'Dessert') - (a === 'Dessert'));
+  return cs.length ? `<div class="coursebar"><span class="lbl">Or by course, any cuisine</span><div class="moodchips">${cs.map(c => `<button class="chip${c === 'Dessert' ? ' hot' : ''}" type="button" data-course="${esc(c)}">${c === 'Dessert' ? '🍰 ' : ''}${esc(c)} · ${cnt.get(c)}</button>`).join('')}</div></div>` : '';
+}
 function renderHome(all, books, quick){
   const tiles = regionTiles(all), n = tiles.length;
   const tile = (t, i) => { const none = t.name === '__none__', c = t.list.length;
@@ -1595,12 +1601,14 @@ function renderHome(all, books, quick){
     <div class="mood"><h1>What are you in the mood for?</h1><p>${n > 1 ? 'Pick a cuisine to see your recipes.' : 'Your recipes, ready when you are.'}</p></div>
     <div class="homesearch"><input id="homeQ" class="search" type="search" placeholder="⌕  Search all ${all.length} recipe${all.length === 1 ? '' : 's'}…" aria-label="Search recipes" autocomplete="off"></div>
     <div class="moodchips"><button class="chip" type="button" id="allFilters">☷ All filters</button>${picks.map(([l, v]) => `<button class="chip" type="button" data-pick="${v}">${l}</button>`).join('')}</div>
+    ${courseRow(all)}
     <div class="regions">${tiles.map(tile).join('')}</div>
     <div class="homeall"><button class="textbtn" type="button" id="seeAll">See all ${all.length} recipe${all.length === 1 ? '' : 's'} →</button></div>
     ${state.canWrite ? quick : ''}
     ${shareNudge()}
     ${shelves}`;
   view.querySelectorAll('[data-region]').forEach(b => b.onclick = () => { state.facets = { Region: b.dataset.region }; renderList(); window.scrollTo(0, 0); });
+  view.querySelectorAll('[data-course]').forEach(b => b.onclick = () => { state.facets = { Course: b.dataset.course }; renderList(); window.scrollTo(0, 0); });
   $('#allFilters').onclick = () => { state.showAll = true; state.moreF = true; renderList(); window.scrollTo(0, 0); };
   $('#seeAll').onclick = () => { state.showAll = true; renderList(); window.scrollTo(0, 0); };
   view.querySelectorAll('[data-pick]').forEach(b => b.onclick = () => { const [k, v] = b.dataset.pick.split(':'); if(k === 'hash'){ location.hash = v; return; } state.extra = { [k]: v }; renderList(); window.scrollTo(0, 0); });
@@ -1611,7 +1619,7 @@ function renderList(){
   if(gate()) return;
   const all = state.recipes, mode = route().mode || '';
   const regSel = state.facets && state.facets.Region;
-  const heading = state.book ? state.book : mode==='favorites' ? 'Your favorites' : mode==='tocook' ? 'Your next delicious adventure' : regSel ? (regSel === '__none__' ? 'Misc recipes' : regSel + ' recipes') : 'All your recipes';
+  const heading = state.book ? state.book : mode==='favorites' ? 'Your favorites' : mode==='tocook' ? 'Your next delicious adventure' : regSel ? (regSel === '__none__' ? 'Misc recipes' : regSel + ' recipes') : (state.facets && state.facets.Course && !Object.keys(state.facets).some(k => k !== 'Course' && state.facets[k])) ? (state.facets.Course === 'Dessert' ? 'Desserts' : state.facets.Course) : 'All your recipes';
   const showHero = false;   /* the home screen has the headline now */
   const books = allBooks();
   const quick = `<section class="banner"><div><h2>Found something delicious?</h2><p>Paste a link. Keep the recipe, skip the scrolling.</p></div>
