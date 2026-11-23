@@ -12,7 +12,7 @@
 <link rel="apple-touch-icon" sizes="180x180" href="../food-icon-180.png">
 <link rel="icon" href="../food-icon.svg" type="image/svg+xml">
 <script src="config.js?v=2"></script>
-<script src="shim.js?v=20"></script>
+<script src="shim.js?v=21"></script>
 <style>[hidden]{display:none!important}:root{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html,body{margin:0}body{font-size:16px}img{max-width:100%}</style>
 </head><body>
 
@@ -677,6 +677,7 @@ ol.method li::before{background:var(--accent);color:var(--accent-ink);font-famil
 .region .rshade{position:absolute;inset:0;background:linear-gradient(180deg,rgba(0,0,0,0) 30%,rgba(0,0,0,.74))}
 .region .rname{position:relative;font-family:'Playfair Display',Georgia,serif;font-weight:800;font-size:1.45rem;line-height:1.1;padding:0 14px;text-shadow:0 1px 8px rgba(0,0,0,.55)}
 .region .rcount{position:relative;padding:3px 14px 13px;font-size:.8rem;opacity:.95;text-shadow:0 1px 6px rgba(0,0,0,.5)}
+.folder{position:relative;display:block;width:100%;height:96px;border:0;border-radius:18px;overflow:hidden;margin:0 0 14px;padding:0;text-align:left;color:#fff;cursor:pointer;background:linear-gradient(135deg,#c2410c,#9d174d)}.folder .rimg{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}.folder .rshade{position:absolute;inset:0;background:linear-gradient(90deg,rgba(0,0,0,.65),rgba(0,0,0,.1))}.folder .rname{position:absolute;left:18px;top:20px;font-family:var(--serif,inherit);font-size:1.5rem;font-weight:700}.folder .rcount{position:absolute;left:18px;bottom:16px;font-size:.9rem;opacity:.95}
 .coursebar{margin:2px 0 18px}.coursebar .lbl{display:block;font-family:var(--mono);font-size:.7rem;text-transform:uppercase;letter-spacing:.07em;color:var(--muted);margin:0 0 8px}.coursebar .moodchips{margin:0}.coursebar .chip.hot{border-color:var(--accent);color:var(--accent)}
 .homeall{text-align:center;margin:14px 0 22px}
 .backhome{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--line);background:var(--surface);color:var(--ink);border-radius:999px;padding:8px 14px;font:inherit;font-size:.9rem;font-weight:600;cursor:pointer;margin:0 0 12px}
@@ -705,7 +706,7 @@ ol.method li::before{background:var(--accent);color:var(--accent-ink);font-famil
   <div id="sideBooks"></div>
   <button class="collection textbtn" type="button" id="sideNewColl">＋ New collection</button>
   <div class="profile"><span class="avatar" id="avatar" aria-hidden="true">✳</span><div><span id="profName">Our kitchen</span><br><small>Your family cookbook</small></div></div>
-  <div class="buildstamp" id="buildStamp">Version Nov 23, 22:07 UTC</div>
+  <div class="buildstamp" id="buildStamp">Version Nov 23, 22:12 UTC</div>
 </aside>
 <div class="mainwrap">
   <header class="top">
@@ -1572,9 +1573,27 @@ function regionTiles(all){
   tiles.sort((a, b) => (a.name === '__none__') - (b.name === '__none__') || b.list.length - a.list.length || a.name.localeCompare(b.name));
   return tiles;
 }
-const isHomeView = mode => !mode && state.recipes.length > 0 && !state.showAll && !state.book && !state.q && !state.tag && !state.mine && !state.weekOnly
+const isHomeView = mode => !mode && state.recipes.length > 0 && !state.folder && !state.showAll && !state.book && !state.q && !state.tag && !state.mine && !state.weekOnly
   && !Object.values(state.facets || {}).some(Boolean) && !Object.values(state.extra || {}).some(Boolean);
-function resetHome(){ state.q = ''; state.tag = ''; state.book = ''; state.mine = false; state.facets = {}; state.weekOnly = false; state.extra = {}; state.showAll = false; }
+const COURSE_EMOJI = { Dessert:'🍰', Breakfast:'🍳', Brunch:'🥞', Lunch:'🥪', Dinner:'🍽️', Appetizer:'🧆', 'Side dish':'🥗', Soup:'🍲', Salad:'🥗', Sandwich:'🥪', Baking:'🍞', Snack:'🍿', Drink:'🍹', Sauce:'🫙' };
+const coursePlural = c => c === 'Dessert' ? 'Desserts' : c === 'Appetizer' ? 'Appetizers' : c === 'Snack' ? 'Snacks' : c === 'Drink' ? 'Drinks' : c === 'Sauce' ? 'Sauces' : c;
+const inCourse = (all, c) => all.filter(r => canonList(r.tags).includes(c));
+const isFolderView = mode => !mode && !!state.folder && !state.showAll && !state.q && !state.tag && !state.mine && !state.weekOnly && !(state.facets && (state.facets.Region || state.facets.Course)) && !Object.values(state.extra || {}).some(Boolean);
+function renderFolder(all){
+  const c = state.folder, list = inCourse(all, c), tiles = regionTiles(list), n = list.length, pl = coursePlural(c);
+  const tile = (t, i) => { const none = t.name === '__none__', k = t.list.length, nm = none ? 'Misc' : t.name;
+    return `<button class="region" type="button" data-region="${esc(t.name)}" style="--g:${MOOD_COLORS[i % MOOD_COLORS.length]}" aria-label="${esc(nm)} ${esc(pl.toLowerCase())}, ${k} recipe${k === 1 ? '' : 's'}">
+      ${t.photo ? `<img class="rimg" src="${esc(imgSrc(t.photo))}" alt="" loading="lazy" draggable="false" onerror="this.style.display='none'">` : ''}<span class="rshade"></span>
+      <span class="rname">${esc(nm)}</span><span class="rcount">${k} recipe${k === 1 ? '' : 's'}</span></button>`; };
+  view.innerHTML = `<button class="backhome" type="button" id="backHome">← What are you in the mood for?</button>
+    <div class="mood"><h1>${COURSE_EMOJI[c] || ''} ${esc(pl)}</h1><p>${n} recipe${n === 1 ? '' : 's'}. Pick a cuisine.</p></div>
+    <div class="regions">${tiles.map(tile).join('')}</div>
+    <div class="homeall"><button class="textbtn" type="button" id="seeAll">See all ${n} ${esc(pl.toLowerCase())} →</button></div>`;
+  $('#backHome').onclick = () => { resetHome(); renderList(); window.scrollTo(0, 0); };
+  view.querySelectorAll('[data-region]').forEach(b => b.onclick = () => { state.facets = { Course: c, Region: b.dataset.region }; renderList(); window.scrollTo(0, 0); });
+  $('#seeAll').onclick = () => { state.facets = { Course: c }; renderList(); window.scrollTo(0, 0); };
+}
+function resetHome(){ state.folder = ''; state.q = ''; state.tag = ''; state.book = ''; state.mine = false; state.facets = {}; state.weekOnly = false; state.extra = {}; state.showAll = false; }
 function bindQuickAndShelves(){
   const qf = $('#quickForm'); if(qf) qf.onsubmit = e => { e.preventDefault(); const u = $('#quickurl').value.trim();
     if(!safeUrl(normUrl(u))){ toast('Paste a complete link, starting with https://'); return; }
@@ -1584,8 +1603,8 @@ function bindQuickAndShelves(){
 }
 function courseRow(all){
   const cnt = new Map(); for(const r of all) for(const t of canonList(r.tags)) if(groupOf(t) === 'Course') cnt.set(t, (cnt.get(t) || 0) + 1);
-  const cs = LABEL_GROUPS.Course.filter(c => cnt.has(c)).sort((a, b) => (b === 'Dessert') - (a === 'Dessert'));
-  return cs.length ? `<div class="coursebar"><span class="lbl">Or by course, any cuisine</span><div class="moodchips">${cs.map(c => `<button class="chip${c === 'Dessert' ? ' hot' : ''}" type="button" data-course="${esc(c)}">${c === 'Dessert' ? '🍰 ' : ''}${esc(c)} · ${cnt.get(c)}</button>`).join('')}</div></div>` : '';
+  const cs = LABEL_GROUPS.Course.filter(c => cnt.has(c) && c !== 'Dessert');
+  return cs.length ? `<div class="coursebar"><span class="lbl">Or by course, any cuisine</span><div class="moodchips">${cs.map(c => `<button class="chip${c === 'Dessert' ? ' hot' : ''}" type="button" data-course="${esc(c)}">${COURSE_EMOJI[c] || ''} ${esc(coursePlural(c))} · ${cnt.get(c)}</button>`).join('')}</div></div>` : '';
 }
 function renderHome(all, books, quick){
   const tiles = regionTiles(all), n = tiles.length;
@@ -1601,6 +1620,8 @@ function renderHome(all, books, quick){
     <div class="mood"><h1>What are you in the mood for?</h1><p>${n > 1 ? 'Pick a cuisine to see your recipes.' : 'Your recipes, ready when you are.'}</p></div>
     <div class="homesearch"><input id="homeQ" class="search" type="search" placeholder="⌕  Search all ${all.length} recipe${all.length === 1 ? '' : 's'}…" aria-label="Search recipes" autocomplete="off"></div>
     <div class="moodchips"><button class="chip" type="button" id="allFilters">☷ All filters</button>${picks.map(([l, v]) => `<button class="chip" type="button" data-pick="${v}">${l}</button>`).join('')}</div>
+    ${(() => { const d = inCourse(all, 'Dessert'); if(!d.length) return ''; const ph = d.slice().sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0)).find(r => r.photoId);
+      return `<button class="folder" type="button" data-course="Dessert" aria-label="Desserts, ${d.length} recipes, by cuisine">${ph ? `<img class="rimg" src="${esc(imgSrc(ph))}" alt="" loading="lazy" draggable="false" onerror="this.style.display='none'">` : ''}<span class="rshade"></span><span class="rname">🍰 Desserts</span><span class="rcount">${d.length} recipe${d.length === 1 ? '' : 's'} · by cuisine →</span></button>`; })()}
     ${courseRow(all)}
     <div class="regions">${tiles.map(tile).join('')}</div>
     <div class="homeall"><button class="textbtn" type="button" id="seeAll">See all ${all.length} recipe${all.length === 1 ? '' : 's'} →</button></div>
@@ -1608,7 +1629,7 @@ function renderHome(all, books, quick){
     ${shareNudge()}
     ${shelves}`;
   view.querySelectorAll('[data-region]').forEach(b => b.onclick = () => { state.facets = { Region: b.dataset.region }; renderList(); window.scrollTo(0, 0); });
-  view.querySelectorAll('[data-course]').forEach(b => b.onclick = () => { state.facets = { Course: b.dataset.course }; renderList(); window.scrollTo(0, 0); });
+  view.querySelectorAll('[data-course]').forEach(b => b.onclick = () => { state.folder = b.dataset.course; state.facets = {}; renderList(); window.scrollTo(0, 0); });
   $('#allFilters').onclick = () => { state.showAll = true; state.moreF = true; renderList(); window.scrollTo(0, 0); };
   $('#seeAll').onclick = () => { state.showAll = true; renderList(); window.scrollTo(0, 0); };
   view.querySelectorAll('[data-pick]').forEach(b => b.onclick = () => { const [k, v] = b.dataset.pick.split(':'); if(k === 'hash'){ location.hash = v; return; } state.extra = { [k]: v }; renderList(); window.scrollTo(0, 0); });
@@ -1619,12 +1640,13 @@ function renderList(){
   if(gate()) return;
   const all = state.recipes, mode = route().mode || '';
   const regSel = state.facets && state.facets.Region;
-  const heading = state.book ? state.book : mode==='favorites' ? 'Your favorites' : mode==='tocook' ? 'Your next delicious adventure' : regSel ? (regSel === '__none__' ? 'Misc recipes' : regSel + ' recipes') : (state.facets && state.facets.Course && !Object.keys(state.facets).some(k => k !== 'Course' && state.facets[k])) ? (state.facets.Course === 'Dessert' ? 'Desserts' : state.facets.Course) : 'All your recipes';
+  const heading = state.book ? state.book : mode==='favorites' ? 'Your favorites' : mode==='tocook' ? 'Your next delicious adventure' : regSel ? (state.folder ? (regSel === '__none__' ? 'Misc ' : regSel + ' ') + coursePlural(state.folder).toLowerCase() : (regSel === '__none__' ? 'Misc recipes' : regSel + ' recipes')) : (state.facets && state.facets.Course && !Object.keys(state.facets).some(k => k !== 'Course' && state.facets[k])) ? coursePlural(state.facets.Course) : 'All your recipes';
   const showHero = false;   /* the home screen has the headline now */
   const books = allBooks();
   const quick = `<section class="banner"><div><h2>Found something delicious?</h2><p>Paste a link. Keep the recipe, skip the scrolling.</p></div>
       <form class="linkbox" id="quickForm" novalidate><input id="quickurl" type="url" inputmode="url" aria-label="Recipe link" placeholder="Paste a recipe or video link…" autocomplete="off"><button class="btn primary" type="submit">Save from link ↗</button></form></section>`;
   if(isHomeView(mode)){ renderHome(all, books, quick); return; }
+  if(isFolderView(mode)){ renderFolder(all); return; }
   view.innerHTML = `
     ${showHero ? `<div class="title"><div><h1>Your cravings, collected.</h1><p>All the recipes you love. One delicious little home.</p></div><span class="note">A little inspiration for your next meal ↘</span></div>
     ${state.canWrite ? quick : ''}
@@ -1643,10 +1665,10 @@ function renderList(){
   drawLibraryGrid();
   /* a recipe list (a cuisine, search results, filters): the home screen's extras step aside, with a way back */
   if(all.length){ view.querySelectorAll('.banner, .collsec, .shelves').forEach(e => e.hidden = true);
-    if(!mode){ view.insertAdjacentHTML('afterbegin', '<button class="backhome" type="button" id="backHome">← What are you in the mood for?</button>'); $('#backHome').onclick = () => { resetHome(); renderList(); window.scrollTo(0, 0); }; } }
+    if(!mode){ view.insertAdjacentHTML('afterbegin', '<button class="backhome" type="button" id="backHome">← What are you in the mood for?</button>'); const f = state.folder; $('#backHome').onclick = () => { resetHome(); state.folder = f || ''; renderList(); window.scrollTo(0, 0); }; if(f) $('#backHome').textContent = '← ' + coursePlural(f); } }
   bindQuickAndShelves();
   if(state._focusSearch){ state._focusSearch = false; const q2f = $('#q2'); if(q2f){ q2f.focus(); try{ q2f.setSelectionRange(q2f.value.length, q2f.value.length); }catch{} } }
-  const rs = $('#resetF'); if(rs) rs.onclick = () => { state.q=''; state.tag=''; state.book=''; state.mine=false; state.facets={}; state.weekOnly=false; state.extra={}; state.showAll=false;
+  const rs = $('#resetF'); if(rs) rs.onclick = () => { state.q=''; state.tag=''; state.book=''; state.mine=false; state.facets={}; state.weekOnly=false; state.extra={}; state.showAll=false; state.folder='';
     if(mode){ location.hash = ''; } else render(); };
   const q2 = $('#q2'); if(q2) q2.oninput = () => { state.q = q2.value.toLowerCase(); drawLibraryGrid(); };
   const mf = $('#moreF'); if(mf) mf.onclick = () => { state.moreF = !state.moreF; renderList(); };
